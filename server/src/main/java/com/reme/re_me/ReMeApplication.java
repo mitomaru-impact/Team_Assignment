@@ -1,4 +1,4 @@
-git fetch --allpackage com.reme.re_me;
+package com.reme.re_me;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
