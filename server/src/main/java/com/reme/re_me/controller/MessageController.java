@@ -53,9 +53,20 @@ public class MessageController {
 
     // 会話一覧の取得
     @GetMapping("/conversations")
-    public ResponseEntity<?> getConversations(@RequestParam Long userId) {
+    public ResponseEntity<?> getConversations(
+            @RequestParam Long userId,
+            @RequestParam(required = false) Long profileId,
+            @RequestParam(defaultValue = "false") boolean unclassified) {
         try {
-            List<ConversationDto> conversations = messageService.getConversations(userId);
+            List<ConversationDto> conversations;
+            if (unclassified) {
+                conversations = messageService.getUnclassifiedConversations(userId);
+            } else {
+                if (profileId == null) {
+                    return ResponseEntity.badRequest().body("プロフィールIDが必要です");
+                }
+                conversations = messageService.getConversations(userId, profileId, false);
+            }
             return ResponseEntity.ok(conversations);
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
