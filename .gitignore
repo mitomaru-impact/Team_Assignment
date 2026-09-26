@@ -1,3 +1,5 @@
 REDME.txt
 *.log
+.env
+*.p8
 WeekRep/

@@ -1,10 +1,18 @@
 spring:
+  config:
+    import: optional:file:.env[.properties],optional:file:server/.env[.properties]
   datasource:
-    url: jdbc:postgresql://localhost:5432/appdb
-    username: user
-    password: password
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/appdb}
+    username: ${DB_USERNAME:user}
+    password: ${DB_PASSWORD:password}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
       ddl-auto: update
     show-sql: true
+apns:
+  team-id: ${APNS_TEAM_ID:}
+  key-id: ${APNS_KEY_ID:}
+  bundle-id: ${APNS_BUNDLE_ID:com.reme.re-me}
+  private-key-path: ${APNS_PRIVATE_KEY_PATH:}
+  use-sandbox: ${APNS_USE_SANDBOX:true}

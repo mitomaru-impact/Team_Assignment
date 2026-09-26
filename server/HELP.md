@@ -26,8 +26,20 @@ The following guides illustrate how to use some features concretely:
 * [Spring Boot and OAuth2](https://spring.io/guides/tutorials/spring-boot-oauth2/)
 * [Authenticating a User with LDAP](https://spring.io/guides/gs/authenticating-ldap/)
 
+### APNs push notifications
+
+Copy `.env.example` to `.env` in the `server/` directory and set the database and
+APNs values there. `.env` is git-ignored. Enable Push Notifications for the app's
+App ID and provisioning profile, then create an APNs authentication key in the
+Apple Developer account. Set `APNS_TEAM_ID`, `APNS_KEY_ID`, and
+`APNS_PRIVATE_KEY_PATH` (the path to the `.p8` file). `APNS_BUNDLE_ID` defaults to
+`com.reme.re-me`. Keep `APNS_USE_SANDBOX=true` for Xcode development builds; set
+it to `false` for TestFlight or App Store builds. This must match the app's
+`aps-environment` signing entitlement. Without APNs credentials, message delivery continues and push
+notifications are disabled. The iOS app asks for notification permission after
+login and registers device tokens automatically.
+
 ### Additional Links
 These additional references should also help you:
 
 * [Gradle Build Scans – insights for your project's build](https://scans.gradle.com#gradle)
-
