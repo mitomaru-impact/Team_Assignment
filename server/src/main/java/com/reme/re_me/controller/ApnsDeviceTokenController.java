@@ -2,6 +2,7 @@ package com.reme.re_me.controller;
 
 import com.reme.re_me.dto.ApnsDeviceTokenRequest;
 import com.reme.re_me.service.ApnsDeviceTokenService;
+import com.reme.re_me.service.PublicUserIdService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -13,9 +14,11 @@ public class ApnsDeviceTokenController {
 
     private static final Logger logger = LoggerFactory.getLogger(ApnsDeviceTokenController.class);
     private final ApnsDeviceTokenService tokenService;
+    private final PublicUserIdService publicUserIdService;
 
-    public ApnsDeviceTokenController(ApnsDeviceTokenService tokenService) {
+    public ApnsDeviceTokenController(ApnsDeviceTokenService tokenService, PublicUserIdService publicUserIdService) {
         this.tokenService = tokenService;
+        this.publicUserIdService = publicUserIdService;
     }
 
     @PostMapping
@@ -24,7 +27,8 @@ public class ApnsDeviceTokenController {
             return ResponseEntity.badRequest().body("APNsデバイストークンの登録情報が必要です");
         }
         try {
-            tokenService.register(request.getUserId(), request.getDeviceToken());
+            tokenService.register(
+                    publicUserIdService.resolveInternalId(request.getUserId()), request.getDeviceToken());
             logger.info("Registered APNs device token for user {}", request.getUserId());
             return ResponseEntity.ok().build();
         } catch (IllegalArgumentException e) {
@@ -34,9 +38,9 @@ public class ApnsDeviceTokenController {
     }
 
     @DeleteMapping
-    public ResponseEntity<?> unregister(@RequestParam Long userId, @RequestParam String deviceToken) {
+    public ResponseEntity<?> unregister(@RequestParam String userId, @RequestParam String deviceToken) {
         try {
-            tokenService.unregister(userId, deviceToken);
+            tokenService.unregister(publicUserIdService.resolveInternalId(userId), deviceToken);
             return ResponseEntity.noContent().build();
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(e.getMessage());

@@ -2,16 +2,22 @@ package com.reme.re_me.service;
 
 import com.reme.re_me.dto.ChatProfileDto;
 import com.reme.re_me.entity.ChatProfile;
+import com.reme.re_me.entity.ConversationState;
 import com.reme.re_me.entity.Message;
 import com.reme.re_me.entity.ProfileContact;
 import com.reme.re_me.entity.User;
 import com.reme.re_me.repository.ChatProfileRepository;
+import com.reme.re_me.repository.ConversationStateRepository;
 import com.reme.re_me.repository.MessageRepository;
 import com.reme.re_me.repository.ProfileContactRepository;
 import com.reme.re_me.repository.UserRepository;
+import com.reme.re_me.websocket.MessageWebSocketHandler;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -23,16 +29,22 @@ public class ChatProfileService {
     private final ProfileContactRepository contactRepository;
     private final UserRepository userRepository;
     private final MessageRepository messageRepository;
+    private final ConversationStateRepository conversationStateRepository;
+    private final MessageWebSocketHandler messageWebSocketHandler;
 
     public ChatProfileService(
             ChatProfileRepository profileRepository,
             ProfileContactRepository contactRepository,
             UserRepository userRepository,
-            MessageRepository messageRepository) {
+            MessageRepository messageRepository,
+            ConversationStateRepository conversationStateRepository,
+            MessageWebSocketHandler messageWebSocketHandler) {
         this.profileRepository = profileRepository;
         this.contactRepository = contactRepository;
         this.userRepository = userRepository;
         this.messageRepository = messageRepository;
+        this.conversationStateRepository = conversationStateRepository;
+        this.messageWebSocketHandler = messageWebSocketHandler;
     }
 
     @Transactional
@@ -110,6 +122,56 @@ public class ChatProfileService {
                 .orElseGet(() -> new ProfileContact(userId, contactUserId, profileId));
         relation.setProfileId(profileId);
         contactRepository.save(relation);
+    }
+
+    @Transactional
+    public void deleteConversation(Long userId, Long partnerId, Long profileId, boolean deleteForBoth) {
+        requireUser(userId);
+        if (partnerId == null || partnerId.equals(userId) || !userRepository.existsById(partnerId)) {
+            throw new IllegalArgumentException("有効な相手ユーザーが指定されていません");
+        }
+        if (profileId != null) {
+            findOwnedProfile(userId, profileId);
+            boolean belongsToProfile = contactRepository
+                    .findByOwnerUserIdAndContactUserId(userId, partnerId)
+                    .map(contact -> contact.getProfileId().equals(profileId))
+                    .orElse(false);
+            if (!belongsToProfile) {
+                throw new IllegalArgumentException("相手は指定プロフィールに登録されていません");
+            }
+        }
+
+        if (deleteForBoth) {
+            User partner = userRepository.findById(partnerId).orElseThrow();
+            User owner = userRepository.findById(userId).orElseThrow();
+            messageRepository.deleteConversation(userId, partnerId);
+            contactRepository.deleteByOwnerUserIdAndContactUserId(userId, partnerId);
+            contactRepository.deleteByOwnerUserIdAndContactUserId(partnerId, userId);
+            conversationStateRepository.deleteByUserIdAndPartnerId(userId, partnerId);
+            conversationStateRepository.deleteByUserIdAndPartnerId(partnerId, userId);
+            notifyConversationDeletedAfterCommit(userId, partner.getEmail(), false);
+            notifyConversationDeletedAfterCommit(partnerId, owner.getEmail(), true);
+            return;
+        }
+
+        if (profileId != null) {
+            contactRepository.deleteByOwnerUserIdAndContactUserId(userId, partnerId);
+        }
+        ConversationState state = conversationStateRepository.findByUserIdAndPartnerId(userId, partnerId)
+                .orElseGet(() -> new ConversationState(userId, partnerId, LocalDateTime.now()));
+        state.setClearedAt(LocalDateTime.now());
+        conversationStateRepository.save(state);
+        User partner = userRepository.findById(partnerId).orElseThrow();
+        notifyConversationDeletedAfterCommit(userId, partner.getEmail(), false);
+    }
+
+    private void notifyConversationDeletedAfterCommit(Long userId, String partnerEmail, boolean forceClose) {
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                messageWebSocketHandler.sendConversationDeleted(userId, partnerEmail, forceClose);
+            }
+        });
     }
 
     public ChatProfile findOwnedProfile(Long userId, Long profileId) {

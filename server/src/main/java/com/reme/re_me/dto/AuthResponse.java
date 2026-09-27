@@ -2,12 +2,12 @@ package com.reme.re_me.dto;
 
 public class AuthResponse {
     private String message;
-    private Long userId;
+    private String userId;
 
     // デフォルトコンストラクタ（JSON変換用）
     public AuthResponse() {}
 
-    public AuthResponse(String message, Long userId) {
+    public AuthResponse(String message, String userId) {
         this.message = message;
         this.userId = userId;
     }
@@ -21,11 +21,11 @@ public class AuthResponse {
         this.message = message;
     }
 
-    public Long getUserId() {
+    public String getUserId() {
         return userId;
     }
 
-    public void setUserId(Long userId) {
+    public void setUserId(String userId) {
         this.userId = userId;
     }
 }

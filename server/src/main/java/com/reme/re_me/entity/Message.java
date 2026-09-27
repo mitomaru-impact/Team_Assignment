@@ -20,6 +20,15 @@ public class Message {
     @Column(nullable = false, length = 1000)
     private String content;
 
+    @Column(name = "reply_to_message_id")
+    private Long replyToMessageId;
+
+    @Column(name = "reply_to_content", length = 1000)
+    private String replyToContent;
+
+    @Column(name = "reply_to_sender_name", length = 255)
+    private String replyToSenderName;
+
     @Column(name = "read_status")
     private Boolean readStatus = false;
 
@@ -29,9 +38,22 @@ public class Message {
     public Message() {}
 
     public Message(Long senderId, Long receiverId, String content) {
+        this(senderId, receiverId, content, null, null, null);
+    }
+
+    public Message(
+            Long senderId,
+            Long receiverId,
+            String content,
+            Long replyToMessageId,
+            String replyToContent,
+            String replyToSenderName) {
         this.senderId = senderId;
         this.receiverId = receiverId;
         this.content = content;
+        this.replyToMessageId = replyToMessageId;
+        this.replyToContent = replyToContent;
+        this.replyToSenderName = replyToSenderName;
         this.createdAt = LocalDateTime.now();
     }
 
@@ -40,6 +62,9 @@ public class Message {
     public Long getSenderId() { return senderId; }
     public Long getReceiverId() { return receiverId; }
     public String getContent() { return content; }
+    public Long getReplyToMessageId() { return replyToMessageId; }
+    public String getReplyToContent() { return replyToContent; }
+    public String getReplyToSenderName() { return replyToSenderName; }
     public Boolean getReadStatus() { return readStatus; }
     public LocalDateTime getCreatedAt() { return createdAt; }
 

@@ -9,11 +9,13 @@ import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 import org.springframework.web.util.UriComponentsBuilder;
+import com.reme.re_me.service.PublicUserIdService;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.util.Set;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Component
@@ -23,10 +25,12 @@ public class MessageWebSocketHandler extends TextWebSocketHandler {
     private static final String USER_ID_ATTRIBUTE = "userId";
 
     private final ObjectMapper objectMapper;
+    private final PublicUserIdService publicUserIdService;
     private final ConcurrentHashMap<Long, Set<WebSocketSession>> sessions = new ConcurrentHashMap<>();
 
-    public MessageWebSocketHandler(ObjectMapper objectMapper) {
+    public MessageWebSocketHandler(ObjectMapper objectMapper, PublicUserIdService publicUserIdService) {
         this.objectMapper = objectMapper;
+        this.publicUserIdService = publicUserIdService;
     }
 
     @Override
@@ -39,10 +43,10 @@ public class MessageWebSocketHandler extends TextWebSocketHandler {
             if (userIdParameter == null) {
                 throw new NumberFormatException("Missing userId");
             }
-            Long userId = Long.valueOf(userIdParameter);
+            Long userId = publicUserIdService.resolveInternalId(userIdParameter);
             session.getAttributes().put(USER_ID_ATTRIBUTE, userId);
             sessions.computeIfAbsent(userId, ignored -> ConcurrentHashMap.newKeySet()).add(session);
-        } catch (NumberFormatException exception) {
+        } catch (IllegalArgumentException exception) {
             logger.warn("Rejected message WebSocket connection with invalid userId");
             session.close(CloseStatus.BAD_DATA);
         }
@@ -67,6 +71,17 @@ public class MessageWebSocketHandler extends TextWebSocketHandler {
     }
 
     public void sendToUser(Long userId, MessageDto message) {
+        sendEventToUser(userId, message, "message");
+    }
+
+    public void sendConversationDeleted(Long userId, String partnerEmail, boolean forceClose) {
+        sendEventToUser(userId, Map.of(
+                "type", "conversation_deleted",
+                "partnerEmail", partnerEmail,
+                "forceClose", forceClose), "conversation deletion");
+    }
+
+    private void sendEventToUser(Long userId, Object event, String eventDescription) {
         Set<WebSocketSession> userSessions = sessions.get(userId);
         if (userSessions == null || userSessions.isEmpty()) {
             return;
@@ -74,9 +89,9 @@ public class MessageWebSocketHandler extends TextWebSocketHandler {
 
         final String payload;
         try {
-            payload = objectMapper.writeValueAsString(message);
+            payload = objectMapper.writeValueAsString(event);
         } catch (JacksonException exception) {
-            logger.error("Failed to serialize message for WebSocket delivery", exception);
+            logger.error("Failed to serialize {} for WebSocket delivery", eventDescription, exception);
             return;
         }
 
@@ -91,7 +106,7 @@ public class MessageWebSocketHandler extends TextWebSocketHandler {
                     }
                 }
             } catch (IOException exception) {
-                logger.warn("Failed to deliver message over WebSocket", exception);
+                logger.warn("Failed to deliver {} over WebSocket", eventDescription, exception);
                 removeSession(session);
             }
         }

@@ -22,4 +22,15 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
     @Transactional
     @Query("UPDATE Message m SET m.readStatus = true WHERE m.receiverId = :receiverId AND m.senderId = :senderId AND (m.readStatus = false OR m.readStatus IS NULL)")
     int markConversationAsRead(@Param("receiverId") Long receiverId, @Param("senderId") Long senderId);
+
+    @Modifying
+    @Transactional
+    @Query("DELETE FROM Message m WHERE (m.senderId = :firstUser AND m.receiverId = :secondUser) OR (m.senderId = :secondUser AND m.receiverId = :firstUser)")
+    int deleteConversation(@Param("firstUser") Long firstUser, @Param("secondUser") Long secondUser);
+
+    @Query("SELECT COUNT(m) FROM Message m WHERE m.receiverId = :receiverId AND m.senderId = :senderId AND m.createdAt > :after AND (m.readStatus = false OR m.readStatus IS NULL)")
+    long countUnreadMessagesAfter(
+            @Param("receiverId") Long receiverId,
+            @Param("senderId") Long senderId,
+            @Param("after") java.time.LocalDateTime after);
 }

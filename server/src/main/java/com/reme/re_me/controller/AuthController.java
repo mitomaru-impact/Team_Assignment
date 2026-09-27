@@ -23,7 +23,7 @@ public class AuthController {
         System.out.println("★ 登録リクエストを受信: " + request.getEmail());
         try {
             User registeredUser = authService.register(request);
-            return ResponseEntity.ok(new AuthResponse("ユーザー登録が完了しました", registeredUser.getId()));
+            return ResponseEntity.ok(new AuthResponse("ユーザー登録が完了しました", registeredUser.getPublicId()));
         } catch (Exception e) {
             System.out.println("★ 登録エラー: " + e.getMessage());
             return ResponseEntity.badRequest().body(e.getMessage());
@@ -35,7 +35,7 @@ public class AuthController {
         System.out.println("★ ログインリクエストを受信: " + request.getEmail());
         try {
             User user = authService.login(request);
-            return ResponseEntity.ok(new AuthResponse("ログインに成功しました", user.getId()));
+            return ResponseEntity.ok(new AuthResponse("ログインに成功しました", user.getPublicId()));
         } catch (Exception e) {
             System.out.println("★ ログインエラー: " + e.getMessage());
             return ResponseEntity.badRequest().body(e.getMessage());

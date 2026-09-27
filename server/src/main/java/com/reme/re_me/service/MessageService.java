@@ -5,19 +5,23 @@ import com.reme.re_me.dto.MessageDto;
 import com.reme.re_me.dto.SendMessageRequest;
 import com.reme.re_me.entity.Message;
 import com.reme.re_me.entity.ProfileContact;
+import com.reme.re_me.entity.ConversationState;
 import com.reme.re_me.entity.User;
 import com.reme.re_me.websocket.MessageWebSocketHandler;
 import com.reme.re_me.repository.MessageRepository;
 import com.reme.re_me.repository.ProfileContactRepository;
+import com.reme.re_me.repository.ConversationStateRepository;
 import com.reme.re_me.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.LinkedHashMap;
 
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -31,18 +35,24 @@ public class MessageService {
     private final ApnsPushNotificationService apnsPushNotificationService;
     private final ProfileContactRepository profileContactRepository;
     private final ChatProfileService chatProfileService;
+    private final ConversationStateRepository conversationStateRepository;
+    private final PublicUserIdService publicUserIdService;
 
     public MessageService(MessageRepository messageRepository, UserRepository userRepository,
                           MessageWebSocketHandler messageWebSocketHandler,
                           ApnsPushNotificationService apnsPushNotificationService,
                           ProfileContactRepository profileContactRepository,
-                          ChatProfileService chatProfileService) {
+                          ChatProfileService chatProfileService,
+                          ConversationStateRepository conversationStateRepository,
+                          PublicUserIdService publicUserIdService) {
         this.messageRepository = messageRepository;
         this.userRepository = userRepository;
         this.messageWebSocketHandler = messageWebSocketHandler;
         this.apnsPushNotificationService = apnsPushNotificationService;
         this.profileContactRepository = profileContactRepository;
         this.chatProfileService = chatProfileService;
+        this.conversationStateRepository = conversationStateRepository;
+        this.publicUserIdService = publicUserIdService;
     }
 
     // メッセージ送信処理
@@ -52,31 +62,57 @@ public class MessageService {
                 || request.getContent().isBlank()) {
             throw new IllegalArgumentException("送信者、宛先、メッセージ本文が必要です");
         }
+        User sender = publicUserIdService.resolve(request.getSenderId());
         User receiver = userRepository.findByEmail(request.getReceiverEmail())
                 .orElseThrow(() -> new RuntimeException("指定されたメールアドレスのユーザーが見つかりません"));
         if (request.getProfileId() != null) {
-            chatProfileService.findOwnedProfile(request.getSenderId(), request.getProfileId());
+            chatProfileService.findOwnedProfile(sender.getId(), request.getProfileId());
             ProfileContact contact = profileContactRepository
-                    .findByOwnerUserIdAndContactUserId(request.getSenderId(), receiver.getId())
+                    .findByOwnerUserIdAndContactUserId(sender.getId(), receiver.getId())
                     .orElseThrow(() -> new IllegalArgumentException("相手を選択中のプロフィールに追加してください"));
             if (!contact.getProfileId().equals(request.getProfileId())) {
                 throw new IllegalArgumentException("相手が別のプロフィールに登録されています");
             }
         }
 
-        Message message = new Message(request.getSenderId(), receiver.getId(), request.getContent());
+        Message repliedMessage = null;
+        if (request.getReplyToMessageId() != null) {
+            repliedMessage = messageRepository.findById(request.getReplyToMessageId())
+                    .orElseThrow(() -> new IllegalArgumentException("返信先のメッセージが見つかりません"));
+            boolean sameConversation =
+                    (repliedMessage.getSenderId().equals(sender.getId())
+                            && repliedMessage.getReceiverId().equals(receiver.getId()))
+                    || (repliedMessage.getSenderId().equals(receiver.getId())
+                            && repliedMessage.getReceiverId().equals(sender.getId()));
+            if (!sameConversation) {
+                throw new IllegalArgumentException("別の会話のメッセージには返信できません");
+            }
+            LocalDateTime clearedAt = getClearedAt(sender.getId(), receiver.getId());
+            if (clearedAt != null && !repliedMessage.getCreatedAt().isAfter(clearedAt)) {
+                throw new IllegalArgumentException("削除済みの履歴には返信できません");
+            }
+        }
+        User repliedSender = repliedMessage == null
+                ? null
+                : userRepository.findById(repliedMessage.getSenderId()).orElse(null);
+        Message message = new Message(
+                sender.getId(),
+                receiver.getId(),
+                request.getContent(),
+                repliedMessage == null ? null : repliedMessage.getId(),
+                repliedMessage == null ? null : repliedMessage.getContent(),
+                repliedSender == null ? null : repliedSender.getName());
         Message saved = messageRepository.save(message);
         logger.info("Saved message {} from user {} to user {}",
                 saved.getId(), saved.getSenderId(), saved.getReceiverId());
 
-        MessageDto messageDto = new MessageDto(saved);
+        MessageDto messageDto = new MessageDto(saved, sender.getPublicId(), receiver.getPublicId());
         messageWebSocketHandler.sendToUser(saved.getReceiverId(), messageDto);
         if (!saved.getSenderId().equals(saved.getReceiverId())) {
             messageWebSocketHandler.sendToUser(saved.getSenderId(), messageDto);
-            User sender = userRepository.findById(saved.getSenderId()).orElse(null);
             apnsPushNotificationService.sendNewMessage(
                     saved.getReceiverId(), saved.getId(), saved.getContent(),
-                    sender == null ? "" : sender.getEmail());
+                    sender.getEmail());
         } else {
             logger.warn("Skipping APNs notification for self-addressed message {}", saved.getId());
         }
@@ -89,7 +125,21 @@ public class MessageService {
                 .orElseThrow(() -> new RuntimeException("相手ユーザーが見つかりません"));
 
         List<Message> history = messageRepository.findChatHistory(userId, targetUser.getId());
-        return history.stream().map(MessageDto::new).collect(Collectors.toList());
+        LocalDateTime clearedAt = getClearedAt(userId, targetUser.getId());
+        if (clearedAt != null) {
+            history = history.stream()
+                    .filter(message -> message.getCreatedAt().isAfter(clearedAt))
+                    .toList();
+        }
+        Set<Long> participantIds = history.stream()
+                .flatMap(message -> java.util.stream.Stream.of(message.getSenderId(), message.getReceiverId()))
+                .collect(Collectors.toSet());
+        Map<Long, String> publicIds = userRepository.findAllById(participantIds).stream()
+                .collect(Collectors.toMap(User::getId, User::getPublicId));
+        return history.stream()
+                .map(message -> new MessageDto(
+                        message, publicIds.get(message.getSenderId()), publicIds.get(message.getReceiverId())))
+                .collect(Collectors.toList());
     }
     
     // 会話相手の一覧を取得
@@ -106,6 +156,11 @@ public class MessageService {
         List<Message> allMessages = messageRepository.findAll().stream()
                 .filter(m -> (m.getSenderId().equals(userId) && contacts.containsKey(m.getReceiverId()))
                         || (m.getReceiverId().equals(userId) && contacts.containsKey(m.getSenderId())))
+                .filter(m -> {
+                    Long partnerId = m.getSenderId().equals(userId) ? m.getReceiverId() : m.getSenderId();
+                    LocalDateTime clearedAt = getClearedAt(userId, partnerId);
+                    return clearedAt == null || m.getCreatedAt().isAfter(clearedAt);
+                })
                 .sorted((m1, m2) -> m2.getCreatedAt().compareTo(m1.getCreatedAt())) // 新しい順
                 .toList();
 
@@ -128,6 +183,10 @@ public class MessageService {
         List<Message> allMessages = messageRepository.findAll().stream()
                 .filter(message -> message.getReceiverId().equals(userId)
                         && !assignedContacts.contains(message.getSenderId()))
+                .filter(message -> {
+                    LocalDateTime clearedAt = getClearedAt(userId, message.getSenderId());
+                    return clearedAt == null || message.getCreatedAt().isAfter(clearedAt);
+                })
                 .sorted((first, second) -> second.getCreatedAt().compareTo(first.getCreatedAt()))
                 .toList();
         Map<Long, Message> latestBySender = new LinkedHashMap<>();
@@ -143,14 +202,23 @@ public class MessageService {
         User partner = userRepository.findById(partnerId).orElse(null);
         String partnerEmail = partner == null ? "Unknown" : partner.getEmail();
         String partnerName = partner == null ? partnerEmail : partner.getName();
-        long unreadCount = messageRepository.countUnreadMessages(userId, partnerId);
+        LocalDateTime clearedAt = getClearedAt(userId, partnerId);
+        long unreadCount = clearedAt == null
+                ? messageRepository.countUnreadMessages(userId, partnerId)
+                : messageRepository.countUnreadMessagesAfter(userId, partnerId, clearedAt);
         return new ConversationDto(
                 partnerEmail,
-                partnerId,
+                partner == null ? null : partner.getPublicId(),
                 partnerName,
                 lastMessage == null ? "" : lastMessage.getContent(),
                 lastMessage == null ? null : lastMessage.getCreatedAt(),
                 unreadCount);
+    }
+
+    private LocalDateTime getClearedAt(Long userId, Long partnerId) {
+        return conversationStateRepository.findByUserIdAndPartnerId(userId, partnerId)
+                .map(ConversationState::getClearedAt)
+                .orElse(null);
     }
 
     public void markConversationAsRead(Long userId, String targetEmail) {
