@@ -16,6 +16,7 @@ import com.reme.re_me.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -63,6 +64,7 @@ public class MessageService {
                 || request.getContent().isBlank()) {
             throw new IllegalArgumentException("送信者、宛先、メッセージ本文が必要です");
         }
+
         User sender = publicUserIdService.resolve(request.getSenderId());
         User receiver = userRepository.findByEmail(request.getReceiverEmail())
                 .orElseThrow(() -> new RuntimeException("指定されたメールアドレスのユーザーが見つかりません"));
@@ -129,18 +131,56 @@ public class MessageService {
         MessageDto messageDto = new MessageDto(
                 saved,
                 sender.getPublicId(),
+                sender.getEmail(),
                 receiver.getPublicId(),
                 chatProfileService.displayNameForContact(sender.getId(), receiver.getId()));
+        boolean unclassifiedForReceiver = profileContactRepository
+                .findByOwnerUserIdAndContactUserId(receiver.getId(), sender.getId())
+                .isEmpty();
+        messageDto.setNotificationMetadata(
+                unclassifiedForReceiver,
+                unclassifiedForReceiver ? "未分類" : senderDisplayName,
+                unclassifiedForReceiver ? "未分類に新しいメッセージがあります。" : saved.getContent());
         messageWebSocketHandler.sendToUser(saved.getReceiverId(), messageDto);
         if (!saved.getSenderId().equals(saved.getReceiverId())) {
             messageWebSocketHandler.sendToUser(saved.getSenderId(), messageDto);
             apnsPushNotificationService.sendNewMessage(
                     saved.getReceiverId(), saved.getId(), saved.getContent(),
-                    sender.getEmail());
+                    senderDisplayName, sender.getEmail());
         } else {
             logger.warn("Skipping APNs notification for self-addressed message {}", saved.getId());
         }
         return messageDto;
+    }
+
+    @Transactional
+    public MessageDto editMessage(Long userId, Long messageId, String content) {
+        if (content == null || content.isBlank() || content.trim().length() > 1000) {
+            throw new IllegalArgumentException("メッセージは1〜1000文字で入力してください");
+        }
+        Message message = messageRepository.findById(messageId)
+                .orElseThrow(() -> new IllegalArgumentException("メッセージが見つかりません"));
+        if (!message.getSenderId().equals(userId)) {
+            throw new IllegalArgumentException("自分のメッセージだけ編集できます");
+        }
+        if (!"MESSAGE".equals(message.getMessageType())) {
+            throw new IllegalArgumentException("このメッセージは編集できません");
+        }
+        message.setContent(content.trim());
+        Message saved = messageRepository.save(message);
+        User sender = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("送信者が見つかりません"));
+        User receiver = userRepository.findById(saved.getReceiverId())
+                .orElseThrow(() -> new IllegalArgumentException("受信者が見つかりません"));
+        MessageDto dto = new MessageDto(
+                saved,
+                sender.getPublicId(),
+                sender.getEmail(),
+                receiver.getPublicId(),
+                chatProfileService.displayNameForContact(userId, receiver.getId()));
+        messageWebSocketHandler.sendToUser(saved.getReceiverId(), dto);
+        messageWebSocketHandler.sendToUser(saved.getSenderId(), dto);
+        return dto;
     }
 
     // チャット履歴取得処理
@@ -164,8 +204,9 @@ public class MessageService {
                 .map(message -> new MessageDto(
                         message,
                         publicIds.get(message.getSenderId()),
-                        publicIds.get(message.getReceiverId()),
-                        chatProfileService.displayNameForContact(message.getSenderId(), message.getReceiverId())))
+                            userRepository.findById(message.getSenderId()).map(User::getEmail).orElse(null),
+                            publicIds.get(message.getReceiverId()),
+                            chatProfileService.displayNameForContact(message.getSenderId(), message.getReceiverId())))
                 .collect(Collectors.toList());
     }
     

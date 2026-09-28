@@ -100,6 +100,22 @@ public class ChatProfileController {
         }
     }
 
+    @PostMapping("/{profileId}/contacts/by-user/{publicUserId}")
+    public ResponseEntity<?> addContactByPublicId(
+            @PathVariable Long profileId,
+            @RequestParam String userId,
+            @PathVariable String publicUserId) {
+        try {
+            profileService.addContactById(
+                    publicUserIdService.resolveInternalId(userId),
+                    profileId,
+                    publicUserIdService.resolveInternalId(publicUserId));
+            return ResponseEntity.noContent().build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
     @DeleteMapping("/{profileId}/contacts")
     public ResponseEntity<?> removeContact(
             @PathVariable Long profileId,

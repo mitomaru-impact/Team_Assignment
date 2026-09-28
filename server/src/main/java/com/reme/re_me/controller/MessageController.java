@@ -3,6 +3,7 @@ package com.reme.re_me.controller;
 import com.reme.re_me.dto.ConversationDto;
 import com.reme.re_me.dto.MessageDto;
 import com.reme.re_me.dto.SendMessageRequest;
+import com.reme.re_me.dto.EditMessageRequest;
 import com.reme.re_me.service.ChatProfileService;
 import com.reme.re_me.service.MessageService;
 import com.reme.re_me.service.PublicUserIdService;
@@ -56,6 +57,24 @@ public class MessageController {
             List<MessageDto> history = messageService.getChatHistory(
                     publicUserIdService.resolveInternalId(userId), targetEmail);
             return ResponseEntity.ok(history);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+
+    }
+
+    @PutMapping("/{messageId}")
+    public ResponseEntity<?> editMessage(
+            @PathVariable Long messageId,
+            @RequestBody EditMessageRequest request) {
+        if (request == null) {
+            return ResponseEntity.badRequest().body("編集内容が必要です");
+        }
+        try {
+            return ResponseEntity.ok(messageService.editMessage(
+                    publicUserIdService.resolveInternalId(request.getUserId()),
+                    messageId,
+                    request.getContent()));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }

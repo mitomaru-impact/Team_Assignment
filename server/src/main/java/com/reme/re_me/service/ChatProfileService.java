@@ -115,6 +115,18 @@ public class ChatProfileService {
         }
         User contact = userRepository.findByEmail(email.trim())
                 .orElseThrow(() -> new IllegalArgumentException("登録ユーザーが見つかりません"));
+        addContact(userId, profileId, contact);
+    }
+
+    @Transactional
+    public void addContactById(Long userId, Long profileId, Long contactUserId) {
+        findOwnedProfile(userId, profileId);
+        User contact = userRepository.findById(contactUserId)
+                .orElseThrow(() -> new IllegalArgumentException("相手ユーザーが見つかりません"));
+        addContact(userId, profileId, contact);
+    }
+
+    private void addContact(Long userId, Long profileId, User contact) {
         if (contact.getId().equals(userId)) {
             throw new IllegalArgumentException("自分自身は追加できません");
         }

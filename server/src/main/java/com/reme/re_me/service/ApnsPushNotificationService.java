@@ -3,6 +3,8 @@ package com.reme.re_me.service;
 import com.reme.re_me.entity.ApnsDeviceToken;
 import com.reme.re_me.entity.VoipDeviceToken;
 import com.reme.re_me.repository.ApnsDeviceTokenRepository;
+import com.reme.re_me.repository.ProfileContactRepository;
+import com.reme.re_me.repository.UserRepository;
 import com.reme.re_me.repository.VoipDeviceTokenRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,6 +37,8 @@ public class ApnsPushNotificationService {
     private static final long JWT_REFRESH_SECONDS = 50 * 60;
 
     private final ApnsDeviceTokenRepository tokenRepository;
+    private final ProfileContactRepository profileContactRepository;
+    private final UserRepository userRepository;
     private final VoipDeviceTokenRepository voipTokenRepository;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
@@ -49,6 +53,8 @@ public class ApnsPushNotificationService {
 
     public ApnsPushNotificationService(
             ApnsDeviceTokenRepository tokenRepository,
+            ProfileContactRepository profileContactRepository,
+            UserRepository userRepository,
             VoipDeviceTokenRepository voipTokenRepository,
             ObjectMapper objectMapper,
             @Value("${apns.team-id:}") String teamId,
@@ -57,6 +63,8 @@ public class ApnsPushNotificationService {
             @Value("${apns.private-key-path:}") String privateKeyPath,
             @Value("${apns.use-sandbox:true}") boolean useSandbox) {
         this.tokenRepository = tokenRepository;
+        this.profileContactRepository = profileContactRepository;
+        this.userRepository = userRepository;
         this.voipTokenRepository = voipTokenRepository;
         this.objectMapper = objectMapper;
         this.teamId = teamId;
@@ -76,7 +84,12 @@ public class ApnsPushNotificationService {
         }
     }
 
-    public void sendNewMessage(Long receiverId, Long messageId, String messageContent, String senderEmail) {
+    public void sendNewMessage(
+            Long receiverId,
+            Long messageId,
+            String messageContent,
+            String senderName,
+            String senderEmail) {
         if (!isConfigured()) {
             logger.error("Cannot send APNs notification for message {}: APNs configuration is incomplete", messageId);
             return;
@@ -89,8 +102,17 @@ public class ApnsPushNotificationService {
         }
         logger.info("Sending APNs notification for message {} to {} device(s) registered for user {}",
                 messageId, tokens.size(), receiverId);
+        Long senderId = userRepository.findByEmail(senderEmail).map(user -> user.getId()).orElse(null);
+        boolean unclassified = senderId == null
+                || profileContactRepository.findByOwnerUserIdAndContactUserId(receiverId, senderId).isEmpty();
         for (ApnsDeviceToken token : tokens) {
-            sendToDevice(token, messageId, messageContent, senderEmail);
+            sendToDevice(
+                    token,
+                    messageId,
+                    messageContent,
+                    senderName == null || senderName.isBlank() ? senderEmail : senderName,
+                    senderEmail,
+                    unclassified);
         }
     }
 
@@ -152,15 +174,22 @@ public class ApnsPushNotificationService {
         }
     }
 
-    private void sendToDevice(ApnsDeviceToken device, Long messageId, String messageContent, String senderEmail) {
+    private void sendToDevice(
+            ApnsDeviceToken device,
+            Long messageId,
+            String messageContent,
+            String senderName,
+            String senderEmail,
+            boolean unclassified) {
         try {
             Map<String, Object> alert = Map.of(
-                    "title", "Re:Me",
-                    "body", messageContent);
+                    "title", unclassified ? "未分類" : senderName,
+                    "body", unclassified ? "未分類に新しいメッセージがあります。" : messageContent);
             Map<String, Object> payload = Map.of(
                     "aps", Map.of("alert", alert, "sound", "default"),
                     "messageId", messageId,
-                    "senderEmail", senderEmail);
+                    "senderEmail", senderEmail,
+                    "unclassified", unclassified);
             String host = useSandbox
                     ? "https://api.sandbox.push.apple.com"
                     : "https://api.push.apple.com";

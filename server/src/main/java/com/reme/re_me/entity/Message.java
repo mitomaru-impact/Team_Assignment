@@ -47,6 +47,9 @@ public class Message {
     @Column(nullable = false)
     private LocalDateTime createdAt;
 
+    @Column(nullable = false)
+    private Boolean edited = false;
+
     public Message() {}
 
     public Message(Long senderId, Long receiverId, String content) {
@@ -84,6 +87,7 @@ public class Message {
     public Long getSenderId() { return senderId; }
     public Long getReceiverId() { return receiverId; }
     public String getContent() { return content; }
+    public Boolean getEdited() { return edited; }
     public String getSenderDisplayName() { return senderDisplayName; }
     public Long getReplyToMessageId() { return replyToMessageId; }
     public String getReplyToContent() { return replyToContent; }
@@ -95,4 +99,8 @@ public class Message {
     public LocalDateTime getCreatedAt() { return createdAt; }
 
     public void setReadStatus(Boolean readStatus) { this.readStatus = readStatus; }
+    public void setContent(String content) {
+        this.content = content;
+        this.edited = true;
+    }
 }
