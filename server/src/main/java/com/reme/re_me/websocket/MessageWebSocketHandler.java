@@ -1,15 +1,21 @@
 package com.reme.re_me.websocket;
 
 import com.reme.re_me.dto.MessageDto;
+import com.reme.re_me.dto.CallSignalRequest;
+import com.reme.re_me.service.CallService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.context.event.EventListener;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 import org.springframework.web.util.UriComponentsBuilder;
+import org.springframework.http.HttpHeaders;
 import com.reme.re_me.service.PublicUserIdService;
+import com.reme.re_me.service.SessionAuthService;
+import com.reme.re_me.entity.User;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
@@ -26,15 +32,34 @@ public class MessageWebSocketHandler extends TextWebSocketHandler {
 
     private final ObjectMapper objectMapper;
     private final PublicUserIdService publicUserIdService;
+    private final SessionAuthService sessionAuthService;
+    private final CallService callService;
     private final ConcurrentHashMap<Long, Set<WebSocketSession>> sessions = new ConcurrentHashMap<>();
 
-    public MessageWebSocketHandler(ObjectMapper objectMapper, PublicUserIdService publicUserIdService) {
+    public MessageWebSocketHandler(
+            ObjectMapper objectMapper,
+            PublicUserIdService publicUserIdService,
+            SessionAuthService sessionAuthService,
+            CallService callService
+    ) {
         this.objectMapper = objectMapper;
         this.publicUserIdService = publicUserIdService;
+        this.sessionAuthService = sessionAuthService;
+        this.callService = callService;
+    }
+
+    public void sendCallEvent(Long userId, Object event) {
+        sendEventToUser(userId, event, "call signaling");
+    }
+
+    @EventListener
+    public void deliverUserEvent(UserWebSocketEvent event) {
+        sendCallEvent(event.userId(), event.payload());
     }
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws IOException {
+        session.setTextMessageSizeLimit(300 * 1024);
         String userIdParameter = UriComponentsBuilder.fromUri(session.getUri())
                 .build()
                 .getQueryParams()
@@ -43,11 +68,16 @@ public class MessageWebSocketHandler extends TextWebSocketHandler {
             if (userIdParameter == null) {
                 throw new NumberFormatException("Missing userId");
             }
+            User authenticatedUser = sessionAuthService.requireUser(
+                    session.getHandshakeHeaders().getFirst(HttpHeaders.AUTHORIZATION));
             Long userId = publicUserIdService.resolveInternalId(userIdParameter);
+            if (!authenticatedUser.getId().equals(userId)) {
+                throw new IllegalArgumentException("Session user does not match userId");
+            }
             session.getAttributes().put(USER_ID_ATTRIBUTE, userId);
             sessions.computeIfAbsent(userId, ignored -> ConcurrentHashMap.newKeySet()).add(session);
-        } catch (IllegalArgumentException exception) {
-            logger.warn("Rejected message WebSocket connection with invalid userId");
+        } catch (IllegalArgumentException | org.springframework.web.server.ResponseStatusException exception) {
+            logger.warn("Rejected WebSocket connection with invalid user identity");
             session.close(CloseStatus.BAD_DATA);
         }
     }
@@ -55,6 +85,35 @@ public class MessageWebSocketHandler extends TextWebSocketHandler {
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
         removeSession(session);
+    }
+
+    @Override
+    protected void handleTextMessage(WebSocketSession session, TextMessage message) {
+        Object authenticatedUserId = session.getAttributes().get(USER_ID_ATTRIBUTE);
+        if (!(authenticatedUserId instanceof Long userId)) {
+            closeInvalidSession(session);
+            return;
+        }
+
+        String callId = null;
+        try {
+            CallSignalRequest signal = objectMapper.readValue(message.getPayload(), CallSignalRequest.class);
+            callId = signal.callId();
+            callService.relaySignal(userId, signal);
+        } catch (org.springframework.web.server.ResponseStatusException exception) {
+            Map<String, Object> error = new java.util.HashMap<>();
+            error.put("type", "call_signal_error");
+            error.put("message", exception.getReason() == null
+                    ? "通話シグナリングを受け付けられません" : exception.getReason());
+            if (callId != null) error.put("callId", callId);
+            sendEventToUser(userId, error, "call signaling error");
+        } catch (JacksonException exception) {
+            logger.warn("Rejected malformed WebSocket signaling payload");
+            sendEventToUser(userId, Map.of(
+                    "type", "call_signal_error",
+                    "message", "通話シグナリングの形式が正しくありません"
+            ), "call signaling error");
+        }
     }
 
     @Override
@@ -79,6 +138,12 @@ public class MessageWebSocketHandler extends TextWebSocketHandler {
                 "type", "conversation_deleted",
                 "partnerEmail", partnerEmail,
                 "forceClose", forceClose), "conversation deletion");
+    }
+
+    public void sendProfileIdentityChanged(Long userId, String profileOwnerEmail) {
+        sendEventToUser(userId, Map.of(
+                "type", "profile_identity_changed",
+                "partnerEmail", profileOwnerEmail), "profile identity change");
     }
 
     private void sendEventToUser(Long userId, Object event, String eventDescription) {
@@ -122,6 +187,16 @@ public class MessageWebSocketHandler extends TextWebSocketHandler {
                     sessions.remove(id, userSessions);
                 }
             }
+        }
+    }
+
+    private void closeInvalidSession(WebSocketSession session) {
+        try {
+            if (session.isOpen()) {
+                session.close(CloseStatus.BAD_DATA);
+            }
+        } catch (IOException exception) {
+            logger.warn("Failed to close an invalid WebSocket session", exception);
         }
     }
 }

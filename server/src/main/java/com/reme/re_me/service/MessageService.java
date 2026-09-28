@@ -6,6 +6,7 @@ import com.reme.re_me.dto.SendMessageRequest;
 import com.reme.re_me.entity.Message;
 import com.reme.re_me.entity.ProfileContact;
 import com.reme.re_me.entity.ConversationState;
+import com.reme.re_me.entity.ChatProfile;
 import com.reme.re_me.entity.User;
 import com.reme.re_me.websocket.MessageWebSocketHandler;
 import com.reme.re_me.repository.MessageRepository;
@@ -65,14 +66,28 @@ public class MessageService {
         User sender = publicUserIdService.resolve(request.getSenderId());
         User receiver = userRepository.findByEmail(request.getReceiverEmail())
                 .orElseThrow(() -> new RuntimeException("指定されたメールアドレスのユーザーが見つかりません"));
+        String senderDisplayName;
         if (request.getProfileId() != null) {
-            chatProfileService.findOwnedProfile(sender.getId(), request.getProfileId());
+            ChatProfile senderProfile = chatProfileService.findOwnedProfile(sender.getId(), request.getProfileId());
             ProfileContact contact = profileContactRepository
                     .findByOwnerUserIdAndContactUserId(sender.getId(), receiver.getId())
-                    .orElseThrow(() -> new IllegalArgumentException("相手を選択中のプロフィールに追加してください"));
+                    .orElseThrow(() -> new IllegalArgumentException("相手を選択中のプロファイルに追加してください"));
             if (!contact.getProfileId().equals(request.getProfileId())) {
-                throw new IllegalArgumentException("相手が別のプロフィールに登録されています");
+                throw new IllegalArgumentException("相手が別のプロファイルに登録されています");
             }
+            senderDisplayName = senderProfile.getDisplayName() == null
+                    ? sender.getName()
+                    : senderProfile.getDisplayName();
+        } else {
+            ProfileContact assignedContact = profileContactRepository
+                    .findByOwnerUserIdAndContactUserId(sender.getId(), receiver.getId())
+                    .orElse(null);
+            ChatProfile senderProfile = assignedContact == null
+                    ? null
+                    : chatProfileService.findOwnedProfile(sender.getId(), assignedContact.getProfileId());
+            senderDisplayName = senderProfile == null || senderProfile.getDisplayName() == null
+                    ? sender.getName()
+                    : senderProfile.getDisplayName();
         }
 
         Message repliedMessage = null;
@@ -99,14 +114,23 @@ public class MessageService {
                 sender.getId(),
                 receiver.getId(),
                 request.getContent(),
+                senderDisplayName,
                 repliedMessage == null ? null : repliedMessage.getId(),
                 repliedMessage == null ? null : repliedMessage.getContent(),
-                repliedSender == null ? null : repliedSender.getName());
+                repliedMessage == null
+                        ? null
+                        : repliedMessage.getSenderDisplayName() != null
+                                ? repliedMessage.getSenderDisplayName()
+                                : repliedSender == null ? null : repliedSender.getName());
         Message saved = messageRepository.save(message);
         logger.info("Saved message {} from user {} to user {}",
                 saved.getId(), saved.getSenderId(), saved.getReceiverId());
 
-        MessageDto messageDto = new MessageDto(saved, sender.getPublicId(), receiver.getPublicId());
+        MessageDto messageDto = new MessageDto(
+                saved,
+                sender.getPublicId(),
+                receiver.getPublicId(),
+                chatProfileService.displayNameForContact(sender.getId(), receiver.getId()));
         messageWebSocketHandler.sendToUser(saved.getReceiverId(), messageDto);
         if (!saved.getSenderId().equals(saved.getReceiverId())) {
             messageWebSocketHandler.sendToUser(saved.getSenderId(), messageDto);
@@ -138,7 +162,10 @@ public class MessageService {
                 .collect(Collectors.toMap(User::getId, User::getPublicId));
         return history.stream()
                 .map(message -> new MessageDto(
-                        message, publicIds.get(message.getSenderId()), publicIds.get(message.getReceiverId())))
+                        message,
+                        publicIds.get(message.getSenderId()),
+                        publicIds.get(message.getReceiverId()),
+                        chatProfileService.displayNameForContact(message.getSenderId(), message.getReceiverId())))
                 .collect(Collectors.toList());
     }
     
@@ -165,14 +192,16 @@ public class MessageService {
                 .toList();
 
         Map<Long, Message> latestMessagePerPartner = new LinkedHashMap<>();
-
         for (Message m : allMessages) {
             Long partnerId = m.getSenderId().equals(userId) ? m.getReceiverId() : m.getSenderId();
             latestMessagePerPartner.putIfAbsent(partnerId, m);
         }
 
         return contacts.keySet().stream()
-                .map(partnerId -> toConversation(userId, partnerId, latestMessagePerPartner.get(partnerId)))
+                .map(partnerId -> toConversation(
+                        userId,
+                        partnerId,
+                        latestMessagePerPartner.get(partnerId)))
                 .collect(Collectors.toList());
     }
 
@@ -194,14 +223,29 @@ public class MessageService {
             latestBySender.putIfAbsent(message.getSenderId(), message);
         }
         return latestBySender.entrySet().stream()
-                .map(entry -> toConversation(userId, entry.getKey(), entry.getValue()))
+                .map(entry -> toConversation(userId, entry.getKey(), entry.getValue(), true))
                 .collect(Collectors.toList());
     }
 
-    private ConversationDto toConversation(Long userId, Long partnerId, Message lastMessage) {
+    private ConversationDto toConversation(
+            Long userId,
+            Long partnerId,
+            Message lastMessage) {
+        return toConversation(userId, partnerId, lastMessage, false);
+    }
+
+    private ConversationDto toConversation(
+            Long userId,
+            Long partnerId,
+            Message lastMessage,
+            boolean unclassified) {
         User partner = userRepository.findById(partnerId).orElse(null);
         String partnerEmail = partner == null ? "Unknown" : partner.getEmail();
-        String partnerName = partner == null ? partnerEmail : partner.getName();
+        String partnerName = unclassified
+                ? partnerEmail
+                : partner == null
+                        ? partnerEmail
+                        : chatProfileService.displayNameForContact(partnerId, userId);
         LocalDateTime clearedAt = getClearedAt(userId, partnerId);
         long unreadCount = clearedAt == null
                 ? messageRepository.countUnreadMessages(userId, partnerId)

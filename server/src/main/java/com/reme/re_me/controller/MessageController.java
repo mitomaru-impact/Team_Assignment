@@ -74,7 +74,7 @@ public class MessageController {
                 conversations = messageService.getUnclassifiedConversations(internalUserId);
             } else {
                 if (profileId == null) {
-                    return ResponseEntity.badRequest().body("プロフィールIDが必要です");
+                    return ResponseEntity.badRequest().body("プロファイルIDが必要です");
                 }
                 conversations = messageService.getConversations(internalUserId, profileId, false);
             }

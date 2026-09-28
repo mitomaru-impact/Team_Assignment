@@ -1,7 +1,9 @@
 package com.reme.re_me.service;
 
 import com.reme.re_me.entity.ApnsDeviceToken;
+import com.reme.re_me.entity.VoipDeviceToken;
 import com.reme.re_me.repository.ApnsDeviceTokenRepository;
+import com.reme.re_me.repository.VoipDeviceTokenRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -33,6 +35,7 @@ public class ApnsPushNotificationService {
     private static final long JWT_REFRESH_SECONDS = 50 * 60;
 
     private final ApnsDeviceTokenRepository tokenRepository;
+    private final VoipDeviceTokenRepository voipTokenRepository;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
     private final String teamId;
@@ -46,6 +49,7 @@ public class ApnsPushNotificationService {
 
     public ApnsPushNotificationService(
             ApnsDeviceTokenRepository tokenRepository,
+            VoipDeviceTokenRepository voipTokenRepository,
             ObjectMapper objectMapper,
             @Value("${apns.team-id:}") String teamId,
             @Value("${apns.key-id:}") String keyId,
@@ -53,6 +57,7 @@ public class ApnsPushNotificationService {
             @Value("${apns.private-key-path:}") String privateKeyPath,
             @Value("${apns.use-sandbox:true}") boolean useSandbox) {
         this.tokenRepository = tokenRepository;
+        this.voipTokenRepository = voipTokenRepository;
         this.objectMapper = objectMapper;
         this.teamId = teamId;
         this.keyId = keyId;
@@ -86,6 +91,64 @@ public class ApnsPushNotificationService {
                 messageId, tokens.size(), receiverId);
         for (ApnsDeviceToken token : tokens) {
             sendToDevice(token, messageId, messageContent, senderEmail);
+        }
+    }
+
+    public void sendIncomingCall(Long receiverId, String callId, String callerName, String callerEmail) {
+        if (!isConfigured()) {
+            logger.error("Cannot send VoIP notification for call {}: APNs configuration is incomplete", callId);
+            return;
+        }
+
+        List<VoipDeviceToken> tokens = voipTokenRepository.findAllByUserId(receiverId);
+        if (tokens.isEmpty()) {
+            logger.info("No VoIP device token registered for call recipient {}", receiverId);
+            return;
+        }
+        for (VoipDeviceToken token : tokens) {
+            sendVoipToDevice(token, callId, callerName, callerEmail);
+        }
+    }
+
+    private void sendVoipToDevice(VoipDeviceToken device, String callId, String callerName, String callerEmail) {
+        try {
+            Map<String, Object> payload = Map.of(
+                    "aps", Map.of("content-available", 1),
+                    "type", "incoming_call",
+                    "callId", callId,
+                    "callerName", callerName,
+                    "callerEmail", callerEmail);
+            String host = useSandbox
+                    ? "https://api.sandbox.push.apple.com"
+                    : "https://api.push.apple.com";
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(host + "/3/device/" + device.getToken()))
+                    .timeout(Duration.ofSeconds(10))
+                    .header("authorization", "bearer " + createJwt())
+                    .header("apns-topic", bundleId + ".voip")
+                    .header("apns-push-type", "voip")
+                    .header("apns-priority", "10")
+                    .header("content-type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(
+                            objectMapper.writeValueAsString(payload), StandardCharsets.UTF_8))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(
+                    request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                logger.info("APNs accepted VoIP push for call {}", callId);
+                return;
+            }
+            if (response.statusCode() == 410 || response.body().contains("BadDeviceToken")) {
+                voipTokenRepository.deleteByToken(device.getToken());
+            }
+            logger.warn("APNs rejected VoIP push for call {} (status {}): {}",
+                    callId, response.statusCode(), response.body());
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            logger.error("Interrupted while sending a VoIP push for call {}", callId, exception);
+        } catch (Exception exception) {
+            logger.error("Failed to send a VoIP push for call {}", callId, exception);
         }
     }
 

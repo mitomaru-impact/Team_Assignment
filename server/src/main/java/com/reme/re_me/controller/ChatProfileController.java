@@ -3,6 +3,8 @@ package com.reme.re_me.controller;
 import com.reme.re_me.dto.AddProfileContactRequest;
 import com.reme.re_me.dto.ChatProfileDto;
 import com.reme.re_me.dto.CreateChatProfileRequest;
+import com.reme.re_me.dto.UpdateChatProfileIdentityRequest;
+import com.reme.re_me.dto.UserDisplayNameDto;
 import com.reme.re_me.service.ChatProfileService;
 import com.reme.re_me.service.PublicUserIdService;
 import org.springframework.http.ResponseEntity;
@@ -32,7 +34,7 @@ public class ChatProfileController {
     @PostMapping
     public ResponseEntity<?> createProfile(@RequestBody CreateChatProfileRequest request) {
         if (request == null) {
-            return ResponseEntity.badRequest().body("プロフィール情報が必要です");
+            return ResponseEntity.badRequest().body("プロファイル情報が必要です");
         }
         try {
             return ResponseEntity.ok(profileService.createProfile(
@@ -47,6 +49,36 @@ public class ChatProfileController {
         try {
             profileService.deleteProfile(publicUserIdService.resolveInternalId(userId), profileId);
             return ResponseEntity.noContent().build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PutMapping("/{profileId}/identity")
+    public ResponseEntity<?> updateIdentity(
+            @PathVariable Long profileId,
+            @RequestBody UpdateChatProfileIdentityRequest request) {
+        if (request == null) {
+            return ResponseEntity.badRequest().body("プロファイル情報が必要です");
+        }
+        try {
+            return ResponseEntity.ok(profileService.updateDisplayName(
+                    publicUserIdService.resolveInternalId(request.getUserId()),
+                    profileId,
+                    request.getDisplayName()));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @GetMapping("/contacts/display-name")
+    public ResponseEntity<?> getContactDisplayName(
+            @RequestParam String userId,
+            @RequestParam String contactEmail) {
+        try {
+            Long ownerId = publicUserIdService.resolveInternalId(userId);
+            return ResponseEntity.ok(new UserDisplayNameDto(
+                    profileService.displayNameForEmailContact(ownerId, contactEmail)));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }

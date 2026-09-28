@@ -38,6 +38,10 @@ it to `false` for TestFlight or App Store builds. This must match the app's
 `aps-environment` signing entitlement. Without APNs credentials, message delivery continues and push
 notifications are disabled. The iOS app asks for notification permission after
 login and registers device tokens automatically.
+The same APNs credentials are used for CallKit incoming-call VoIP pushes. The iOS
+target must also have Push Notifications and Background Modes enabled; VoIP tokens
+are registered separately from alert-notification tokens. Verify that development
+builds use the APNs sandbox endpoint and TestFlight/App Store builds use production.
 
 ### Additional Links
 These additional references should also help you:
