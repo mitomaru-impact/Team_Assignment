@@ -15,7 +15,7 @@ public class SecurityConfig {
         http
             .csrf(csrf -> csrf.disable()) // APIテストのためCSRFを無効化
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/hello", "/api/auth/**", "/api/calls/**", "/api/messages/**", "/api/devices/**", "/api/users/**", "/api/profiles/**", "/ws/**").permitAll()
+                .requestMatchers("/api/hello", "/api/auth/**", "/api/calls/**", "/api/messages/**", "/api/groups/**", "/api/devices/**", "/api/users/**", "/api/profiles/**", "/ws/**").permitAll()
                 .anyRequest().authenticated()
             );
 

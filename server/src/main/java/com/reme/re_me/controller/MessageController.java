@@ -132,4 +132,18 @@ public class MessageController {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
+
+    @DeleteMapping("/leave")
+    public ResponseEntity<?> leaveConversation(
+            @RequestParam String userId,
+            @RequestParam String targetEmail,
+            @RequestParam(required = false) Long profileId) {
+        try {
+            messageService.leaveConversation(
+                    publicUserIdService.resolveInternalId(userId), targetEmail, profileId);
+            return ResponseEntity.noContent().build();
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
 }

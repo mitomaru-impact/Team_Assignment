@@ -311,4 +311,15 @@ public class MessageService {
                 .orElseThrow(() -> new RuntimeException("相手ユーザーが見つかりません"));
         messageRepository.markConversationAsRead(userId, targetUser.getId());
     }
+
+    public void leaveConversation(Long userId, String targetEmail, Long profileId) {
+        User targetUser = userRepository.findByEmail(targetEmail)
+                .orElseThrow(() -> new IllegalArgumentException("相手ユーザーが見つかりません"));
+        Long assignedProfileId = profileId == null
+                ? profileContactRepository.findByOwnerUserIdAndContactUserId(userId, targetUser.getId())
+                        .map(ProfileContact::getProfileId)
+                        .orElse(null)
+                : profileId;
+        chatProfileService.deleteConversation(userId, targetUser.getId(), assignedProfileId, false);
+    }
 }

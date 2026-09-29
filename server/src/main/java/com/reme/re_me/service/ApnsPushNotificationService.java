@@ -116,6 +116,24 @@ public class ApnsPushNotificationService {
         }
     }
 
+    public void sendNewGroupMessage(
+            Long receiverId,
+            Long messageId,
+            String messageContent,
+            String groupId,
+            String groupName,
+            String senderName) {
+        if (!isConfigured()) {
+            logger.error("Cannot send APNs notification for group message {}: APNs configuration is incomplete",
+                    messageId);
+            return;
+        }
+        List<ApnsDeviceToken> tokens = tokenRepository.findAllByUserId(receiverId);
+        for (ApnsDeviceToken token : tokens) {
+            sendGroupMessageToDevice(token, messageId, messageContent, groupId, groupName, senderName);
+        }
+    }
+
     public void sendIncomingCall(Long receiverId, String callId, String callerName, String callerEmail) {
         if (!isConfigured()) {
             logger.error("Cannot send VoIP notification for call {}: APNs configuration is incomplete", callId);
@@ -211,7 +229,6 @@ public class ApnsPushNotificationService {
                 logger.info("APNs accepted notification for message {}", messageId);
                 return;
             }
-
             if (response.statusCode() == 410 || response.body().contains("BadDeviceToken")) {
                 tokenRepository.deleteByToken(device.getToken());
             }
@@ -222,6 +239,53 @@ public class ApnsPushNotificationService {
             logger.error("Interrupted while sending an APNs notification", e);
         } catch (Exception e) {
             logger.error("Failed to send an APNs notification", e);
+        }
+    }
+
+    private void sendGroupMessageToDevice(
+            ApnsDeviceToken device,
+            Long messageId,
+            String messageContent,
+            String groupId,
+            String groupName,
+            String senderName) {
+        try {
+            Map<String, Object> payload = Map.of(
+                    "aps", Map.of(
+                            "alert", Map.of(
+                                    "title", groupName,
+                                    "body", senderName + ": " + messageContent),
+                            "sound", "default"),
+                    "messageId", messageId,
+                    "groupId", groupId);
+            String host = useSandbox
+                    ? "https://api.sandbox.push.apple.com"
+                    : "https://api.push.apple.com";
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(host + "/3/device/" + device.getToken()))
+                    .timeout(Duration.ofSeconds(10))
+                    .header("authorization", "bearer " + createJwt())
+                    .header("apns-topic", bundleId)
+                    .header("apns-push-type", "alert")
+                    .header("apns-priority", "10")
+                    .header("content-type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(
+                            objectMapper.writeValueAsString(payload), StandardCharsets.UTF_8))
+                    .build();
+            HttpResponse<String> response = httpClient.send(
+                    request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            if (response.statusCode() == 410 || response.body().contains("BadDeviceToken")) {
+                tokenRepository.deleteByToken(device.getToken());
+            }
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                logger.warn("APNs rejected group message {} (status {}): {}",
+                        messageId, response.statusCode(), response.body());
+            }
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            logger.error("Interrupted while sending group message {}", messageId, exception);
+        } catch (Exception exception) {
+            logger.error("Failed to send group message {}", messageId, exception);
         }
     }
 

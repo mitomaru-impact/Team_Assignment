@@ -1,6 +1,7 @@
 package com.reme.re_me.dto;
 
 import com.reme.re_me.entity.Message;
+import com.reme.re_me.entity.GroupMessage;
 import java.time.LocalDateTime;
 
 public class MessageDto {
@@ -20,6 +21,8 @@ public class MessageDto {
     private Long callDurationSeconds;
     private LocalDateTime createdAt;
     private Boolean edited;
+    private String groupId;
+    private String groupName;
 
     public MessageDto(Message message, String senderId, String receiverId) {
         this(message, senderId, null, receiverId, message.getSenderDisplayName());
@@ -50,6 +53,23 @@ public class MessageDto {
         this.edited = message.getEdited();
     }
 
+    public MessageDto(GroupMessage message, String senderId, String senderEmail, String groupName) {
+        this.id = message.getId();
+        this.senderId = senderId;
+        this.senderEmail = senderEmail;
+        this.receiverId = null;
+        this.content = message.getContent();
+        this.senderDisplayName = message.getSenderDisplayName();
+        this.replyToMessageId = message.getReplyToMessageId();
+        this.replyToContent = message.getReplyToContent();
+        this.replyToSenderName = message.getReplyToSenderName();
+        this.type = "MESSAGE";
+        this.createdAt = message.getCreatedAt();
+        this.edited = message.getEdited();
+        this.groupId = message.getGroupId();
+        this.groupName = groupName;
+    }
+
     public Long getId() { return id; }
     public String getSenderId() { return senderId; }
     public String getSenderEmail() { return senderEmail; }
@@ -66,6 +86,8 @@ public class MessageDto {
     public Long getCallDurationSeconds() { return callDurationSeconds; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public Boolean getEdited() { return edited; }
+    public String getGroupId() { return groupId; }
+    public String getGroupName() { return groupName; }
 
     public void setNotificationMetadata(
             boolean unclassifiedForReceiver,
