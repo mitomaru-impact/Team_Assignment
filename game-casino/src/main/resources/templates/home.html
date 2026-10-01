@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ja"
+      xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Game Casino</title>
+</head>
+
+<body>
+
+    <h1>🎰 Game Casino 🎰</h1>
+
+    <h2>
+        ようこそ、
+        <span th:text="${player.playerName}"></span> さん！
+    </h2>
+
+    <hr>
+
+    <h3>💰 所持情報</h3>
+
+    <p>
+        Coin：
+        <strong th:text="${player.coin}"></strong> C
+    </p>
+
+    <p>
+        Debt：
+        <strong th:text="${player.debt}"></strong> C
+    </p>
+
+    <p>
+        Balance：
+        <strong th:text="${player.balance}"></strong> C
+    </p>
+
+    <hr>
+
+    <h2>ゲームを選択</h2>
+
+    <button>🎲 Yacht</button>
+
+    <button>🃏 High & Low</button>
+
+    <button>🎰 Slot</button>
+
+    <button>♠️ Blackjack</button>
+
+</body>
+</html>

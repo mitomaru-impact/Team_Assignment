@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Player Setup</title>
+</head>
+
+<body>
+
+    <h1>🎰 Game Casino</h1>
+
+    <h2>プレイヤー登録</h2>
+
+    <form action="/player/start" method="post">
+
+        <label for="playerName">プレイヤー名：</label>
+
+        <input
+            type="text"
+            id="playerName"
+            name="playerName"
+            required
+            maxlength="20"
+        >
+
+        <button type="submit">ゲームを開始</button>
+
+    </form>
+
+</body>
+</html>
