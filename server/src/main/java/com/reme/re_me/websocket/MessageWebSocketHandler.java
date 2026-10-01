@@ -20,6 +20,7 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Set;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -131,6 +132,13 @@ public class MessageWebSocketHandler extends TextWebSocketHandler {
 
     public void sendToUser(Long userId, MessageDto message) {
         sendEventToUser(userId, message, "message");
+    }
+
+    public void sendReadReceipt(Long userId, String readerId, List<Long> messageIds) {
+        sendEventToUser(userId, Map.of(
+                "type", "read_receipt",
+                "readerId", readerId,
+                "messageIds", messageIds), "read receipt");
     }
 
     public void sendConversationDeleted(Long userId, String partnerEmail, boolean forceClose) {

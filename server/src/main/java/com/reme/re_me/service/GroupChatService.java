@@ -246,8 +246,9 @@ public class GroupChatService {
     @Transactional(readOnly = true)
     public List<MessageDto> getHistory(Long userId, String groupId) {
         ChatGroup group = requireMember(userId, groupId);
+        List<ChatGroupMember> members = memberRepository.findAllByGroupId(groupId);
         return messageRepository.findAllByGroupIdOrderByCreatedAtAscIdAsc(groupId).stream()
-                .map(message -> toDto(message, group))
+                .map(message -> toDto(message, group, members))
                 .toList();
     }
 
@@ -266,8 +267,9 @@ public class GroupChatService {
         }
         GroupMessage saved = messageRepository.save(new GroupMessage(
                 groupId, sender.getId(), sender.getName(), request.getContent().trim(), replyTo));
-        MessageDto dto = toDto(saved, group);
-        for (ChatGroupMember member : memberRepository.findAllByGroupId(groupId)) {
+        List<ChatGroupMember> members = memberRepository.findAllByGroupId(groupId);
+        MessageDto dto = toDto(saved, group, members);
+        for (ChatGroupMember member : members) {
             webSocketHandler.sendToUser(member.getUserId(), dto);
             if (!member.getUserId().equals(sender.getId())) {
                 pushNotificationService.sendNewGroupMessage(
@@ -296,8 +298,9 @@ public class GroupChatService {
         }
         message.setContent(content.trim());
         GroupMessage saved = messageRepository.save(message);
-        MessageDto dto = toDto(saved, group);
-        List<Long> memberIds = memberRepository.findAllByGroupId(groupId).stream()
+        List<ChatGroupMember> members = memberRepository.findAllByGroupId(groupId);
+        MessageDto dto = toDto(saved, group, members);
+        List<Long> memberIds = members.stream()
                 .map(ChatGroupMember::getUserId)
                 .toList();
         afterCommit(() -> memberIds.forEach(memberId -> webSocketHandler.sendToUser(memberId, dto)));
@@ -310,6 +313,11 @@ public class GroupChatService {
                 .orElseThrow(() -> new IllegalArgumentException("グループのメンバーではありません"));
         member.setLastReadAt(LocalDateTime.now());
         memberRepository.save(member);
+        List<Long> memberIds = memberRepository.findAllByGroupId(groupId).stream()
+                .map(ChatGroupMember::getUserId)
+                .toList();
+        afterCommit(() -> memberIds.forEach(memberId -> webSocketHandler.sendCallEvent(
+                memberId, java.util.Map.of("type", "group_read_receipt", "groupId", groupId))));
     }
 
     private ChatGroup requireMember(Long userId, String groupId) {
@@ -329,10 +337,17 @@ public class GroupChatService {
         return group;
     }
 
-    private MessageDto toDto(GroupMessage message, ChatGroup group) {
+    private MessageDto toDto(GroupMessage message, ChatGroup group, List<ChatGroupMember> members) {
         User sender = userRepository.findById(message.getSenderId())
                 .orElseThrow(() -> new IllegalStateException("送信者が見つかりません"));
-        return new MessageDto(message, sender.getPublicId(), sender.getEmail(), group.getName());
+        MessageDto dto = new MessageDto(message, sender.getPublicId(), sender.getEmail(), group.getName());
+        int readCount = (int) members.stream()
+                .filter(member -> !member.getUserId().equals(message.getSenderId()))
+                .filter(member -> member.getLastReadAt() != null
+                        && !member.getLastReadAt().isBefore(message.getCreatedAt()))
+                .count();
+        dto.setReadCount(readCount);
+        return dto;
     }
 
     private void afterCommit(Runnable action) {

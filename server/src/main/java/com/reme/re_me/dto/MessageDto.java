@@ -21,6 +21,8 @@ public class MessageDto {
     private Long callDurationSeconds;
     private LocalDateTime createdAt;
     private Boolean edited;
+    private Boolean readStatus;
+    private Integer readCount;
     private String groupId;
     private String groupName;
 
@@ -51,6 +53,7 @@ public class MessageDto {
         this.callDurationSeconds = message.getCallDurationSeconds();
         this.createdAt = message.getCreatedAt();
         this.edited = message.getEdited();
+        this.readStatus = message.getReadStatus();
     }
 
     public MessageDto(GroupMessage message, String senderId, String senderEmail, String groupName) {
@@ -66,6 +69,7 @@ public class MessageDto {
         this.type = "MESSAGE";
         this.createdAt = message.getCreatedAt();
         this.edited = message.getEdited();
+        this.readCount = 0;
         this.groupId = message.getGroupId();
         this.groupName = groupName;
     }
@@ -86,8 +90,12 @@ public class MessageDto {
     public Long getCallDurationSeconds() { return callDurationSeconds; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public Boolean getEdited() { return edited; }
+    public Boolean getReadStatus() { return readStatus; }
+    public Integer getReadCount() { return readCount; }
     public String getGroupId() { return groupId; }
     public String getGroupName() { return groupName; }
+
+    public void setReadCount(Integer readCount) { this.readCount = readCount; }
 
     public void setNotificationMetadata(
             boolean unclassifiedForReceiver,

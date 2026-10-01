@@ -309,7 +309,14 @@ public class MessageService {
     public void markConversationAsRead(Long userId, String targetEmail) {
         User targetUser = userRepository.findByEmail(targetEmail)
                 .orElseThrow(() -> new RuntimeException("相手ユーザーが見つかりません"));
+        List<Long> unreadMessageIds = messageRepository.findUnreadMessageIds(userId, targetUser.getId());
         messageRepository.markConversationAsRead(userId, targetUser.getId());
+        if (!unreadMessageIds.isEmpty()) {
+            User reader = userRepository.findById(userId)
+                    .orElseThrow(() -> new IllegalArgumentException("ユーザーが見つかりません"));
+            messageWebSocketHandler.sendReadReceipt(
+                    targetUser.getId(), reader.getPublicId(), unreadMessageIds);
+        }
     }
 
     public void leaveConversation(Long userId, String targetEmail, Long profileId) {
