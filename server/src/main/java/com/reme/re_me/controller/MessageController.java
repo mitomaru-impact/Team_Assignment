@@ -133,6 +133,24 @@ public class MessageController {
         }
     }
 
+    @DeleteMapping("/conversation/by-email")
+    public ResponseEntity<?> deleteConversationByEmail(
+            @RequestParam String userId,
+            @RequestParam String targetEmail,
+            @RequestParam(required = false) Long profileId,
+            @RequestParam(defaultValue = "false") boolean deleteForBoth) {
+        try {
+            messageService.deleteConversation(
+                    publicUserIdService.resolveInternalId(userId),
+                    targetEmail,
+                    profileId,
+                    deleteForBoth);
+            return ResponseEntity.noContent().build();
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
     @DeleteMapping("/leave")
     public ResponseEntity<?> leaveConversation(
             @RequestParam String userId,

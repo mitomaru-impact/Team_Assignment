@@ -264,7 +264,7 @@ public class MessageService {
             latestBySender.putIfAbsent(message.getSenderId(), message);
         }
         return latestBySender.entrySet().stream()
-                .map(entry -> toConversation(userId, entry.getKey(), entry.getValue(), true))
+                .map(entry -> toConversation(userId, entry.getKey(), entry.getValue()))
                 .collect(Collectors.toList());
     }
 
@@ -272,21 +272,11 @@ public class MessageService {
             Long userId,
             Long partnerId,
             Message lastMessage) {
-        return toConversation(userId, partnerId, lastMessage, false);
-    }
-
-    private ConversationDto toConversation(
-            Long userId,
-            Long partnerId,
-            Message lastMessage,
-            boolean unclassified) {
         User partner = userRepository.findById(partnerId).orElse(null);
         String partnerEmail = partner == null ? "Unknown" : partner.getEmail();
-        String partnerName = unclassified
+        String partnerName = partner == null
                 ? partnerEmail
-                : partner == null
-                        ? partnerEmail
-                        : chatProfileService.displayNameForContact(partnerId, userId);
+                : chatProfileService.displayNameForContact(partnerId, userId);
         LocalDateTime clearedAt = getClearedAt(userId, partnerId);
         long unreadCount = clearedAt == null
                 ? messageRepository.countUnreadMessages(userId, partnerId)
@@ -328,5 +318,11 @@ public class MessageService {
                         .orElse(null)
                 : profileId;
         chatProfileService.deleteConversation(userId, targetUser.getId(), assignedProfileId, false);
+    }
+
+    public void deleteConversation(Long userId, String targetEmail, Long profileId, boolean deleteForBoth) {
+        User targetUser = userRepository.findByEmail(targetEmail)
+                .orElseThrow(() -> new IllegalArgumentException("相手ユーザーが見つかりません"));
+        chatProfileService.deleteConversation(userId, targetUser.getId(), profileId, deleteForBoth);
     }
 }
