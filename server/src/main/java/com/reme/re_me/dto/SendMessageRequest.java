@@ -6,6 +6,7 @@ public class SendMessageRequest {
     private Long replyToMessageId;
     private String receiverEmail; // 相手のメールアドレス指定
     private String content;
+    private boolean silent;
 
     public String getSenderId() { return senderId; }
     public void setSenderId(String senderId) { this.senderId = senderId; }
@@ -18,4 +19,6 @@ public class SendMessageRequest {
 
     public String getContent() { return content; }
     public void setContent(String content) { this.content = content; }
+    public boolean isSilent() { return silent; }
+    public void setSilent(boolean silent) { this.silent = silent; }
 }

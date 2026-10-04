@@ -35,6 +35,12 @@ public class GroupMessage {
     @Column(nullable = false)
     private Boolean edited = false;
 
+    @Column
+    private Boolean recalled = false;
+
+    @Column
+    private Boolean silent = false;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -65,10 +71,22 @@ public class GroupMessage {
     public String getReplyToContent() { return replyToContent; }
     public String getReplyToSenderName() { return replyToSenderName; }
     public Boolean getEdited() { return edited; }
+    public Boolean getRecalled() { return recalled; }
+    public Boolean getSilent() { return silent; }
     public LocalDateTime getCreatedAt() { return createdAt; }
 
     public void setContent(String content) {
         this.content = content;
         this.edited = true;
+    }
+
+    public void setSilent(Boolean silent) { this.silent = silent; }
+
+    public void recall() {
+        this.content = "メッセージの送信を取り消しました";
+        this.edited = false;
+        this.recalled = true;
+        this.replyToContent = null;
+        this.replyToSenderName = null;
     }
 }

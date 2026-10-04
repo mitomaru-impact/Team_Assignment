@@ -3,7 +3,10 @@ package com.reme.re_me.controller;
 import com.reme.re_me.dto.CreateGroupRequest;
 import com.reme.re_me.dto.ManageGroupMembersRequest;
 import com.reme.re_me.dto.SendGroupMessageRequest;
+import com.reme.re_me.dto.ToggleMessageReactionRequest;
 import com.reme.re_me.service.GroupChatService;
+import com.reme.re_me.service.MessageReactionService;
+import com.reme.re_me.service.MessageRecallService;
 import com.reme.re_me.service.PublicUserIdService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -14,10 +17,18 @@ public class GroupChatController {
 
     private final GroupChatService groupChatService;
     private final PublicUserIdService publicUserIdService;
+    private final MessageReactionService messageReactionService;
+    private final MessageRecallService messageRecallService;
 
-    public GroupChatController(GroupChatService groupChatService, PublicUserIdService publicUserIdService) {
+    public GroupChatController(
+            GroupChatService groupChatService,
+            PublicUserIdService publicUserIdService,
+            MessageReactionService messageReactionService,
+            MessageRecallService messageRecallService) {
         this.groupChatService = groupChatService;
         this.publicUserIdService = publicUserIdService;
+        this.messageReactionService = messageReactionService;
+        this.messageRecallService = messageRecallService;
     }
 
     @GetMapping("/contacts")
@@ -86,12 +97,49 @@ public class GroupChatController {
         if (request == null) {
             return ResponseEntity.badRequest().body("編集内容が必要です");
         }
+
         try {
             return ResponseEntity.ok(groupChatService.editMessage(
                     publicUserIdService.resolveInternalId(request.getUserId()),
                     groupId,
                     messageId,
                     request.getContent()));
+        } catch (RuntimeException exception) {
+            return ResponseEntity.badRequest().body(exception.getMessage());
+        }
+    }
+
+    @PostMapping("/{groupId}/messages/{messageId}/reactions")
+    public ResponseEntity<?> toggleReaction(
+            @PathVariable String groupId,
+            @PathVariable Long messageId,
+            @RequestBody ToggleMessageReactionRequest request) {
+        if (request == null || request.userId() == null) {
+            return ResponseEntity.badRequest().body("リアクションするユーザーが必要です");
+        }
+        try {
+            messageReactionService.toggleGroup(
+                    publicUserIdService.resolveInternalId(request.userId()),
+                    groupId,
+                    messageId,
+                    request.emoji());
+            return ResponseEntity.noContent().build();
+        } catch (RuntimeException exception) {
+            return ResponseEntity.badRequest().body(exception.getMessage());
+        }
+    }
+
+    @DeleteMapping("/{groupId}/messages/{messageId}")
+    public ResponseEntity<?> recallMessage(
+            @PathVariable String groupId,
+            @PathVariable Long messageId,
+            @RequestParam String userId) {
+        try {
+            messageRecallService.recallGroup(
+                    publicUserIdService.resolveInternalId(userId),
+                    groupId,
+                    messageId);
+            return ResponseEntity.noContent().build();
         } catch (RuntimeException exception) {
             return ResponseEntity.badRequest().body(exception.getMessage());
         }

@@ -5,6 +5,7 @@ import com.reme.re_me.dto.ChatProfileDto;
 import com.reme.re_me.dto.CreateChatProfileRequest;
 import com.reme.re_me.dto.UpdateChatProfileIdentityRequest;
 import com.reme.re_me.dto.UserDisplayNameDto;
+import com.reme.re_me.dto.UserNameDto;
 import com.reme.re_me.service.ChatProfileService;
 import com.reme.re_me.service.PublicUserIdService;
 import org.springframework.http.ResponseEntity;
@@ -79,6 +80,19 @@ public class ChatProfileController {
             Long ownerId = publicUserIdService.resolveInternalId(userId);
             return ResponseEntity.ok(new UserDisplayNameDto(
                     profileService.displayNameForEmailContact(ownerId, contactEmail)));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @GetMapping("/contacts/username")
+    public ResponseEntity<?> getContactUsername(
+            @RequestParam String userId,
+            @RequestParam String contactEmail) {
+        try {
+            Long ownerId = publicUserIdService.resolveInternalId(userId);
+            return ResponseEntity.ok(new UserNameDto(
+                    profileService.usernameForEmailContact(ownerId, contactEmail)));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }

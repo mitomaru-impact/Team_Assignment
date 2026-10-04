@@ -5,6 +5,7 @@ import com.reme.re_me.dto.GroupContactDto;
 import com.reme.re_me.dto.GroupConversationDto;
 import com.reme.re_me.dto.GroupMemberDto;
 import com.reme.re_me.dto.MessageDto;
+import com.reme.re_me.dto.MessageReactionDto;
 import com.reme.re_me.dto.SendGroupMessageRequest;
 import com.reme.re_me.entity.ChatGroup;
 import com.reme.re_me.entity.ChatGroupMember;
@@ -27,6 +28,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @Service
@@ -41,6 +43,9 @@ public class GroupChatService {
     private final PublicUserIdService publicUserIdService;
     private final MessageWebSocketHandler webSocketHandler;
     private final ApnsPushNotificationService pushNotificationService;
+    private final MessageReactionService reactionService;
+    private final ConversationMuteService conversationMuteService;
+    private final MessageMentionService mentionService;
 
     public GroupChatService(
             ChatGroupRepository groupRepository,
@@ -51,7 +56,10 @@ public class GroupChatService {
             ChatProfileService chatProfileService,
             PublicUserIdService publicUserIdService,
             MessageWebSocketHandler webSocketHandler,
-            ApnsPushNotificationService pushNotificationService) {
+            ApnsPushNotificationService pushNotificationService,
+            MessageReactionService reactionService,
+            ConversationMuteService conversationMuteService,
+            MessageMentionService mentionService) {
         this.groupRepository = groupRepository;
         this.memberRepository = memberRepository;
         this.messageRepository = messageRepository;
@@ -61,6 +69,9 @@ public class GroupChatService {
         this.publicUserIdService = publicUserIdService;
         this.webSocketHandler = webSocketHandler;
         this.pushNotificationService = pushNotificationService;
+        this.reactionService = reactionService;
+        this.conversationMuteService = conversationMuteService;
+        this.mentionService = mentionService;
     }
 
     @Transactional(readOnly = true)
@@ -82,11 +93,19 @@ public class GroupChatService {
         ChatGroup group = requireMember(userId, groupId);
         return memberRepository.findAllByGroupId(groupId).stream()
                 .map(member -> userRepository.findById(member.getUserId())
-                        .map(user -> new GroupMemberDto(
-                                user.getPublicId(),
-                                user.getEmail(),
-                                user.getName(),
-                                user.getId().equals(group.getCreatedBy())))
+                        .map(user -> {
+                            String displayName = chatProfileService.displayNameForEmailContact(
+                                    userId, user.getEmail());
+                            if (displayName.equals(user.getEmail())) {
+                                displayName = user.getName();
+                            }
+                            return new GroupMemberDto(
+                                    user.getPublicId(),
+                                    user.getEmail(),
+                                    displayName,
+                                    user.getName(),
+                                    user.getId().equals(group.getCreatedBy()));
+                        })
                         .orElse(null))
                 .filter(java.util.Objects::nonNull)
                 .toList();
@@ -151,6 +170,10 @@ public class GroupChatService {
                 .filter(member -> !member.getUserId().equals(userId))
                 .toList();
         if (remaining.isEmpty()) {
+            mentionService.deleteForGroup(groupId);
+            reactionService.deleteForGroupMessages(
+                    messageRepository.findAllByGroupIdOrderByCreatedAtAscIdAsc(groupId).stream()
+                            .map(GroupMessage::getId).toList());
             messageRepository.deleteAllByGroupId(groupId);
             groupRepository.delete(group);
         } else {
@@ -178,6 +201,10 @@ public class GroupChatService {
         List<Long> memberIds = memberRepository.findAllByGroupId(groupId).stream()
                 .map(ChatGroupMember::getUserId)
                 .toList();
+        mentionService.deleteForGroup(groupId);
+        reactionService.deleteForGroupMessages(
+                messageRepository.findAllByGroupIdOrderByCreatedAtAscIdAsc(groupId).stream()
+                        .map(GroupMessage::getId).toList());
         messageRepository.deleteAllByGroupId(groupId);
         memberRepository.deleteAllByGroupId(groupId);
         groupRepository.delete(group);
@@ -247,11 +274,21 @@ public class GroupChatService {
     public List<MessageDto> getHistory(Long userId, String groupId) {
         ChatGroup group = requireMember(userId, groupId);
         List<ChatGroupMember> members = memberRepository.findAllByGroupId(groupId);
-        return messageRepository.findAllByGroupIdOrderByCreatedAtAscIdAsc(groupId).stream()
-                .map(message -> toDto(message, group, members))
-                .toList();
+        List<GroupMessage> history = messageRepository.findAllByGroupIdOrderByCreatedAtAscIdAsc(groupId);
+        Map<Long, List<com.reme.re_me.dto.MessageReactionDto>> reactions =
+                reactionService.forGroupMessagesById(history, userId);
+        Map<Long, List<com.reme.re_me.dto.MessageMentionDto>> mentions =
+                mentionService.forMessages(
+                        history.stream().map(GroupMessage::getId).toList(), groupId, userId);
+        return history.stream().map(message -> {
+            MessageDto dto = toDto(message, group, members);
+            dto.setReactions(reactions.getOrDefault(message.getId(), List.of()));
+            dto.setMentions(mentions.getOrDefault(message.getId(), List.of()));
+            return dto;
+        }).toList();
     }
 
+    @Transactional
     public MessageDto sendMessage(String groupId, SendGroupMessageRequest request) {
         if (request.getUserId() == null || request.getContent() == null
                 || request.getContent().isBlank() || request.getContent().trim().length() > 1000) {
@@ -259,19 +296,42 @@ public class GroupChatService {
         }
         User sender = publicUserIdService.resolve(request.getUserId());
         ChatGroup group = requireMember(sender.getId(), groupId);
+        List<ChatGroupMember> members = memberRepository.findAllByGroupId(groupId);
+        List<User> eligibleUsers = members.stream()
+                .map(member -> userRepository.findById(member.getUserId())
+                        .orElseThrow(() -> new IllegalStateException("グループメンバーが見つかりません")))
+                .toList();
+        MessageMentionService.Resolution mentionResolution = mentionService.resolve(
+                request.getContent().trim(), sender.getId(), eligibleUsers, groupId);
+        if (mentionResolution.content().length() > 1000) {
+            throw new IllegalArgumentException("メッセージは1000文字以内で入力してください");
+        }
         GroupMessage replyTo = null;
         if (request.getReplyToMessageId() != null) {
             replyTo = messageRepository.findById(request.getReplyToMessageId())
                     .filter(message -> message.getGroupId().equals(groupId))
                     .orElseThrow(() -> new IllegalArgumentException("返信先のメッセージが見つかりません"));
         }
-        GroupMessage saved = messageRepository.save(new GroupMessage(
-                groupId, sender.getId(), sender.getName(), request.getContent().trim(), replyTo));
-        List<ChatGroupMember> members = memberRepository.findAllByGroupId(groupId);
+        GroupMessage message = new GroupMessage(
+                groupId, sender.getId(), sender.getName(), mentionResolution.content(), replyTo);
+        message.setSilent(request.isSilent());
+        GroupMessage saved = messageRepository.save(message);
+        mentionService.save(saved.getId(), groupId, mentionResolution);
         MessageDto dto = toDto(saved, group, members);
+        dto.setSilent(request.isSilent());
+        dto.setMentions(mentionService.forMessage(saved.getId(), groupId, sender.getId()));
         for (ChatGroupMember member : members) {
-            webSocketHandler.sendToUser(member.getUserId(), dto);
-            if (!member.getUserId().equals(sender.getId())) {
+            boolean memberMentioned = mentionResolution.mentions().stream()
+                    .anyMatch(mention -> mention.user().getId().equals(member.getUserId()));
+            boolean notificationsAllowed = conversationMuteService.notificationsAllowed(
+                    member.getUserId(), sender.getId(), groupId, memberMentioned);
+            MessageDto memberDto = toDto(saved, group, members);
+            memberDto.setSilent(request.isSilent());
+            memberDto.setMentions(mentionService.forMessage(saved.getId(), groupId, member.getUserId()));
+            memberDto.setNotificationsMuted(
+                    !notificationsAllowed && !member.getUserId().equals(sender.getId()));
+            webSocketHandler.sendToUser(member.getUserId(), memberDto);
+            if (!request.isSilent() && notificationsAllowed && !member.getUserId().equals(sender.getId())) {
                 pushNotificationService.sendNewGroupMessage(
                         member.getUserId(),
                         saved.getId(),
@@ -296,14 +356,33 @@ public class GroupChatService {
         if (!message.getSenderId().equals(userId)) {
             throw new IllegalArgumentException("自分のメッセージだけ編集できます");
         }
-        message.setContent(content.trim());
-        GroupMessage saved = messageRepository.save(message);
+        if (Boolean.TRUE.equals(message.getRecalled())) {
+            throw new IllegalArgumentException("取り消し済みメッセージは編集できません");
+        }
         List<ChatGroupMember> members = memberRepository.findAllByGroupId(groupId);
-        MessageDto dto = toDto(saved, group, members);
+        List<User> eligibleUsers = members.stream()
+                .map(member -> userRepository.findById(member.getUserId())
+                        .orElseThrow(() -> new IllegalStateException("グループメンバーが見つかりません")))
+                .toList();
+        MessageMentionService.Resolution resolution = mentionService.resolve(
+                content.trim(), userId, eligibleUsers, groupId);
+        if (resolution.content().length() > 1000) {
+            throw new IllegalArgumentException("メッセージは1000文字以内で入力してください");
+        }
+        message.setContent(resolution.content());
+        GroupMessage saved = messageRepository.save(message);
+        mentionService.deleteForMessage(messageId, groupId);
+        mentionService.save(messageId, groupId, resolution);
         List<Long> memberIds = members.stream()
                 .map(ChatGroupMember::getUserId)
                 .toList();
-        afterCommit(() -> memberIds.forEach(memberId -> webSocketHandler.sendToUser(memberId, dto)));
+        MessageDto dto = toDto(saved, group, members);
+        dto.setMentions(mentionService.forMessage(messageId, groupId, userId));
+        afterCommit(() -> memberIds.forEach(memberId -> {
+            MessageDto memberDto = toDto(saved, group, members);
+            memberDto.setMentions(mentionService.forMessage(messageId, groupId, memberId));
+            webSocketHandler.sendToUser(memberId, memberDto);
+        }));
         return dto;
     }
 

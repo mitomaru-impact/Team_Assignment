@@ -23,8 +23,14 @@ LINEは「リア友」、Discordは「ネッ友」、Slackは「お仕事」。
 
 ## ファイル構成
 * `ios/`: iOSアプリ
+* `android/`: Androidアプリ（Android Studioで開くプロジェクト）
 * `server/`: バックエンド
 * `sql`: Docker-Composeで動く、PostgresSQL
+
+## Androidアプリ
+`android/`をAndroid Studioで開き、Gradle同期後に実行してください。Jetpack ComposeとMaterial 3を使用しています。初期接続先はiOSアプリと同じサーバーURLで、ログイン画面の設定アイコンまたはアカウント画面から変更できます。Android Emulatorからローカルサーバーへ接続する場合は、接続先を`http://10.0.2.2:<ポート>`に設定してください。
+
+プロフィール別の会話、未分類の会話、グループ一覧、個別/グループメッセージに対応しています。
 
 ## 頑張ったポイント
 * APNsを使用しているため、通知が来ます‼️

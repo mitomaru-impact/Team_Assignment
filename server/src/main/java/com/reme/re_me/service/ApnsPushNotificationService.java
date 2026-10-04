@@ -40,6 +40,7 @@ public class ApnsPushNotificationService {
     private final ProfileContactRepository profileContactRepository;
     private final UserRepository userRepository;
     private final VoipDeviceTokenRepository voipTokenRepository;
+    private final UnreadBadgeService unreadBadgeService;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
     private final String teamId;
@@ -56,6 +57,7 @@ public class ApnsPushNotificationService {
             ProfileContactRepository profileContactRepository,
             UserRepository userRepository,
             VoipDeviceTokenRepository voipTokenRepository,
+            UnreadBadgeService unreadBadgeService,
             ObjectMapper objectMapper,
             @Value("${apns.team-id:}") String teamId,
             @Value("${apns.key-id:}") String keyId,
@@ -66,6 +68,7 @@ public class ApnsPushNotificationService {
         this.profileContactRepository = profileContactRepository;
         this.userRepository = userRepository;
         this.voipTokenRepository = voipTokenRepository;
+        this.unreadBadgeService = unreadBadgeService;
         this.objectMapper = objectMapper;
         this.teamId = teamId;
         this.keyId = keyId;
@@ -105,6 +108,7 @@ public class ApnsPushNotificationService {
         Long senderId = userRepository.findByEmail(senderEmail).map(user -> user.getId()).orElse(null);
         boolean unclassified = senderId == null
                 || profileContactRepository.findByOwnerUserIdAndContactUserId(receiverId, senderId).isEmpty();
+        int badge = unreadBadgeService.unreadCount(receiverId);
         for (ApnsDeviceToken token : tokens) {
             sendToDevice(
                     token,
@@ -112,7 +116,8 @@ public class ApnsPushNotificationService {
                     messageContent,
                     senderName == null || senderName.isBlank() ? senderEmail : senderName,
                     senderEmail,
-                    unclassified);
+                    unclassified,
+                    badge);
         }
     }
 
@@ -129,8 +134,10 @@ public class ApnsPushNotificationService {
             return;
         }
         List<ApnsDeviceToken> tokens = tokenRepository.findAllByUserId(receiverId);
+        int badge = unreadBadgeService.unreadCount(receiverId);
         for (ApnsDeviceToken token : tokens) {
-            sendGroupMessageToDevice(token, messageId, messageContent, groupId, groupName, senderName);
+            sendGroupMessageToDevice(
+                    token, messageId, messageContent, groupId, groupName, senderName, badge);
         }
     }
 
@@ -198,13 +205,14 @@ public class ApnsPushNotificationService {
             String messageContent,
             String senderName,
             String senderEmail,
-            boolean unclassified) {
+            boolean unclassified,
+            int badge) {
         try {
             Map<String, Object> alert = Map.of(
                     "title", unclassified ? "未分類" : senderName,
                     "body", unclassified ? "未分類に新しいメッセージがあります。" : messageContent);
             Map<String, Object> payload = Map.of(
-                    "aps", Map.of("alert", alert, "sound", "default"),
+                    "aps", Map.of("alert", alert, "sound", "default", "badge", badge),
                     "messageId", messageId,
                     "senderEmail", senderEmail,
                     "unclassified", unclassified);
@@ -248,14 +256,16 @@ public class ApnsPushNotificationService {
             String messageContent,
             String groupId,
             String groupName,
-            String senderName) {
+            String senderName,
+            int badge) {
         try {
             Map<String, Object> payload = Map.of(
                     "aps", Map.of(
                             "alert", Map.of(
                                     "title", groupName,
                                     "body", senderName + ": " + messageContent),
-                            "sound", "default"),
+                            "sound", "default",
+                            "badge", badge),
                     "messageId", messageId,
                     "groupId", groupId);
             String host = useSandbox

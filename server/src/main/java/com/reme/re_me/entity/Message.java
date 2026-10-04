@@ -50,6 +50,9 @@ public class Message {
     @Column(nullable = false)
     private Boolean edited = false;
 
+    @Column
+    private Boolean silent = false;
+
     public Message() {}
 
     public Message(Long senderId, Long receiverId, String content) {
@@ -97,10 +100,20 @@ public class Message {
     public Long getCallDurationSeconds() { return callDurationSeconds; }
     public Boolean getReadStatus() { return readStatus; }
     public LocalDateTime getCreatedAt() { return createdAt; }
+    public Boolean getSilent() { return silent; }
 
     public void setReadStatus(Boolean readStatus) { this.readStatus = readStatus; }
+    public void setSilent(Boolean silent) { this.silent = silent; }
     public void setContent(String content) {
         this.content = content;
         this.edited = true;
+    }
+
+    public void recall() {
+        this.content = "メッセージの送信を取り消しました";
+        this.messageType = "RECALLED";
+        this.edited = false;
+        this.replyToContent = null;
+        this.replyToSenderName = null;
     }
 }

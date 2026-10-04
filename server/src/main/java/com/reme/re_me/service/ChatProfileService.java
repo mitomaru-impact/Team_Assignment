@@ -32,6 +32,7 @@ public class ChatProfileService {
     private final MessageRepository messageRepository;
     private final ConversationStateRepository conversationStateRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final MessageReactionService reactionService;
 
     public ChatProfileService(
             ChatProfileRepository profileRepository,
@@ -39,13 +40,15 @@ public class ChatProfileService {
             UserRepository userRepository,
             MessageRepository messageRepository,
             ConversationStateRepository conversationStateRepository,
-            ApplicationEventPublisher eventPublisher) {
+            ApplicationEventPublisher eventPublisher,
+            MessageReactionService reactionService) {
         this.profileRepository = profileRepository;
         this.contactRepository = contactRepository;
         this.userRepository = userRepository;
         this.messageRepository = messageRepository;
         this.conversationStateRepository = conversationStateRepository;
         this.eventPublisher = eventPublisher;
+        this.reactionService = reactionService;
     }
 
     @Transactional
@@ -196,6 +199,15 @@ public class ChatProfileService {
                 : displayNameForContact(contact.getId(), viewerUserId);
     }
 
+    public String usernameForEmailContact(Long viewerUserId, String contactEmail) {
+        if (contactEmail == null || contactEmail.isBlank()) {
+            throw new IllegalArgumentException("相手のメールアドレスが必要です");
+        }
+        return userRepository.findByEmail(contactEmail.trim())
+                .map(User::getName)
+                .orElseThrow(() -> new IllegalArgumentException("相手ユーザーが見つかりません"));
+    }
+
     @Transactional
     public void deleteConversation(Long userId, Long partnerId, Long profileId, boolean deleteForBoth) {
         requireUser(userId);
@@ -216,6 +228,9 @@ public class ChatProfileService {
         if (deleteForBoth) {
             User partner = userRepository.findById(partnerId).orElseThrow();
             User owner = userRepository.findById(userId).orElseThrow();
+            reactionService.deleteForDirectMessages(
+                    messageRepository.findChatHistory(userId, partnerId).stream()
+                            .map(Message::getId).toList());
             messageRepository.deleteConversation(userId, partnerId);
             contactRepository.deleteByOwnerUserIdAndContactUserId(userId, partnerId);
             contactRepository.deleteByOwnerUserIdAndContactUserId(partnerId, userId);

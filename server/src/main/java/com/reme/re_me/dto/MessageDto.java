@@ -3,6 +3,7 @@ package com.reme.re_me.dto;
 import com.reme.re_me.entity.Message;
 import com.reme.re_me.entity.GroupMessage;
 import java.time.LocalDateTime;
+import java.util.List;
 
 public class MessageDto {
     private Long id;
@@ -25,6 +26,11 @@ public class MessageDto {
     private Integer readCount;
     private String groupId;
     private String groupName;
+    private List<MessageReactionDto> reactions = List.of();
+    private boolean silent;
+    private boolean recalled;
+    private boolean notificationsMuted;
+    private List<MessageMentionDto> mentions = List.of();
 
     public MessageDto(Message message, String senderId, String receiverId) {
         this(message, senderId, null, receiverId, message.getSenderDisplayName());
@@ -50,6 +56,8 @@ public class MessageDto {
         this.replyToContent = message.getReplyToContent();
         this.replyToSenderName = message.getReplyToSenderName();
         this.type = message.getMessageType();
+        this.recalled = "RECALLED".equals(message.getMessageType());
+        this.silent = Boolean.TRUE.equals(message.getSilent());
         this.callDurationSeconds = message.getCallDurationSeconds();
         this.createdAt = message.getCreatedAt();
         this.edited = message.getEdited();
@@ -67,6 +75,8 @@ public class MessageDto {
         this.replyToContent = message.getReplyToContent();
         this.replyToSenderName = message.getReplyToSenderName();
         this.type = "MESSAGE";
+        this.recalled = Boolean.TRUE.equals(message.getRecalled());
+        this.silent = Boolean.TRUE.equals(message.getSilent());
         this.createdAt = message.getCreatedAt();
         this.edited = message.getEdited();
         this.readCount = 0;
@@ -94,8 +104,21 @@ public class MessageDto {
     public Integer getReadCount() { return readCount; }
     public String getGroupId() { return groupId; }
     public String getGroupName() { return groupName; }
+    public List<MessageReactionDto> getReactions() { return reactions; }
+    public boolean isSilent() { return silent; }
+    public boolean isRecalled() { return recalled; }
+    public boolean isNotificationsMuted() { return notificationsMuted; }
+    public List<MessageMentionDto> getMentions() { return mentions; }
 
     public void setReadCount(Integer readCount) { this.readCount = readCount; }
+    public void setReactions(List<MessageReactionDto> reactions) { this.reactions = reactions; }
+    public void setSilent(boolean silent) { this.silent = silent; }
+    public void setNotificationsMuted(boolean notificationsMuted) {
+        this.notificationsMuted = notificationsMuted;
+    }
+    public void setMentions(List<MessageMentionDto> mentions) {
+        this.mentions = mentions == null ? List.of() : mentions;
+    }
 
     public void setNotificationMetadata(
             boolean unclassifiedForReceiver,

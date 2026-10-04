@@ -2,7 +2,9 @@ package com.reme.re_me.websocket;
 
 import com.reme.re_me.dto.MessageDto;
 import com.reme.re_me.dto.CallSignalRequest;
+import com.reme.re_me.dto.TypingSignalRequest;
 import com.reme.re_me.service.CallService;
+import com.reme.re_me.service.MessageTypingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -35,18 +37,21 @@ public class MessageWebSocketHandler extends TextWebSocketHandler {
     private final PublicUserIdService publicUserIdService;
     private final SessionAuthService sessionAuthService;
     private final CallService callService;
+    private final MessageTypingService messageTypingService;
     private final ConcurrentHashMap<Long, Set<WebSocketSession>> sessions = new ConcurrentHashMap<>();
 
     public MessageWebSocketHandler(
             ObjectMapper objectMapper,
             PublicUserIdService publicUserIdService,
             SessionAuthService sessionAuthService,
-            CallService callService
+            CallService callService,
+            MessageTypingService messageTypingService
     ) {
         this.objectMapper = objectMapper;
         this.publicUserIdService = publicUserIdService;
         this.sessionAuthService = sessionAuthService;
         this.callService = callService;
+        this.messageTypingService = messageTypingService;
     }
 
     public void sendCallEvent(Long userId, Object event) {
@@ -98,6 +103,13 @@ public class MessageWebSocketHandler extends TextWebSocketHandler {
 
         String callId = null;
         try {
+            Map<?, ?> payload = objectMapper.readValue(message.getPayload(), Map.class);
+            if ("typing".equals(payload.get("type"))) {
+                TypingSignalRequest signal = objectMapper.readValue(
+                        message.getPayload(), TypingSignalRequest.class);
+                messageTypingService.relay(userId, signal);
+                return;
+            }
             CallSignalRequest signal = objectMapper.readValue(message.getPayload(), CallSignalRequest.class);
             callId = signal.callId();
             callService.relaySignal(userId, signal);
@@ -114,6 +126,8 @@ public class MessageWebSocketHandler extends TextWebSocketHandler {
                     "type", "call_signal_error",
                     "message", "通話シグナリングの形式が正しくありません"
             ), "call signaling error");
+        } catch (IllegalArgumentException exception) {
+            logger.warn("Rejected invalid WebSocket typing signal: {}", exception.getMessage());
         }
     }
 

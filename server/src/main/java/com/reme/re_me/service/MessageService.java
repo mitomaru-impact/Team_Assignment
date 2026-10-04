@@ -2,6 +2,7 @@ package com.reme.re_me.service;
 
 import com.reme.re_me.dto.ConversationDto;
 import com.reme.re_me.dto.MessageDto;
+import com.reme.re_me.dto.MessageReactionDto;
 import com.reme.re_me.dto.SendMessageRequest;
 import com.reme.re_me.entity.Message;
 import com.reme.re_me.entity.ProfileContact;
@@ -39,6 +40,9 @@ public class MessageService {
     private final ChatProfileService chatProfileService;
     private final ConversationStateRepository conversationStateRepository;
     private final PublicUserIdService publicUserIdService;
+    private final MessageReactionService messageReactionService;
+    private final ConversationMuteService conversationMuteService;
+    private final MessageMentionService mentionService;
 
     public MessageService(MessageRepository messageRepository, UserRepository userRepository,
                           MessageWebSocketHandler messageWebSocketHandler,
@@ -46,7 +50,10 @@ public class MessageService {
                           ProfileContactRepository profileContactRepository,
                           ChatProfileService chatProfileService,
                           ConversationStateRepository conversationStateRepository,
-                          PublicUserIdService publicUserIdService) {
+                          PublicUserIdService publicUserIdService,
+                          MessageReactionService messageReactionService,
+                          ConversationMuteService conversationMuteService,
+                          MessageMentionService mentionService) {
         this.messageRepository = messageRepository;
         this.userRepository = userRepository;
         this.messageWebSocketHandler = messageWebSocketHandler;
@@ -55,19 +62,29 @@ public class MessageService {
         this.chatProfileService = chatProfileService;
         this.conversationStateRepository = conversationStateRepository;
         this.publicUserIdService = publicUserIdService;
+        this.messageReactionService = messageReactionService;
+        this.conversationMuteService = conversationMuteService;
+        this.mentionService = mentionService;
     }
 
     // メッセージ送信処理
+    @Transactional
     public MessageDto sendMessage(SendMessageRequest request) {
         if (request.getSenderId() == null || request.getReceiverEmail() == null
                 || request.getReceiverEmail().isBlank() || request.getContent() == null
-                || request.getContent().isBlank()) {
+                || request.getContent().isBlank()
+                || request.getContent().trim().length() > 1000) {
             throw new IllegalArgumentException("送信者、宛先、メッセージ本文が必要です");
         }
 
         User sender = publicUserIdService.resolve(request.getSenderId());
         User receiver = userRepository.findByEmail(request.getReceiverEmail())
                 .orElseThrow(() -> new RuntimeException("指定されたメールアドレスのユーザーが見つかりません"));
+        MessageMentionService.Resolution mentionResolution = mentionService.resolve(
+                request.getContent(), sender.getId(), List.of(receiver), null);
+        if (mentionResolution.content().length() > 1000) {
+            throw new IllegalArgumentException("メッセージは1000文字以内で入力してください");
+        }
         String senderDisplayName;
         if (request.getProfileId() != null) {
             ChatProfile senderProfile = chatProfileService.findOwnedProfile(sender.getId(), request.getProfileId());
@@ -115,7 +132,7 @@ public class MessageService {
         Message message = new Message(
                 sender.getId(),
                 receiver.getId(),
-                request.getContent(),
+                mentionResolution.content(),
                 senderDisplayName,
                 repliedMessage == null ? null : repliedMessage.getId(),
                 repliedMessage == null ? null : repliedMessage.getContent(),
@@ -124,7 +141,9 @@ public class MessageService {
                         : repliedMessage.getSenderDisplayName() != null
                                 ? repliedMessage.getSenderDisplayName()
                                 : repliedSender == null ? null : repliedSender.getName());
+        message.setSilent(request.isSilent());
         Message saved = messageRepository.save(message);
+        mentionService.save(saved.getId(), null, mentionResolution);
         logger.info("Saved message {} from user {} to user {}",
                 saved.getId(), saved.getSenderId(), saved.getReceiverId());
 
@@ -134,6 +153,13 @@ public class MessageService {
                 sender.getEmail(),
                 receiver.getPublicId(),
                 chatProfileService.displayNameForContact(sender.getId(), receiver.getId()));
+        messageDto.setSilent(request.isSilent());
+        boolean receiverMentioned = mentionResolution.mentions().stream()
+                .anyMatch(mention -> mention.user().getId().equals(receiver.getId()));
+        boolean notificationsAllowed = conversationMuteService.notificationsAllowed(
+                saved.getReceiverId(), saved.getSenderId(), null, receiverMentioned);
+        messageDto.setNotificationsMuted(!notificationsAllowed);
+        messageDto.setMentions(mentionService.forMessage(saved.getId(), null, receiver.getId()));
         boolean unclassifiedForReceiver = profileContactRepository
                 .findByOwnerUserIdAndContactUserId(receiver.getId(), sender.getId())
                 .isEmpty();
@@ -142,15 +168,24 @@ public class MessageService {
                 unclassifiedForReceiver ? "未分類" : senderDisplayName,
                 unclassifiedForReceiver ? "未分類に新しいメッセージがあります。" : saved.getContent());
         messageWebSocketHandler.sendToUser(saved.getReceiverId(), messageDto);
+        MessageDto responseDto = messageDto;
         if (!saved.getSenderId().equals(saved.getReceiverId())) {
-            messageWebSocketHandler.sendToUser(saved.getSenderId(), messageDto);
-            apnsPushNotificationService.sendNewMessage(
-                    saved.getReceiverId(), saved.getId(), saved.getContent(),
-                    senderDisplayName, sender.getEmail());
+            MessageDto senderDto = new MessageDto(
+                    saved, sender.getPublicId(), sender.getEmail(), receiver.getPublicId(),
+                    chatProfileService.displayNameForContact(sender.getId(), receiver.getId()));
+            senderDto.setSilent(request.isSilent());
+            senderDto.setMentions(mentionService.forMessage(saved.getId(), null, sender.getId()));
+            messageWebSocketHandler.sendToUser(saved.getSenderId(), senderDto);
+            responseDto = senderDto;
+            if (!request.isSilent() && notificationsAllowed) {
+                apnsPushNotificationService.sendNewMessage(
+                        saved.getReceiverId(), saved.getId(), saved.getContent(),
+                        senderDisplayName, sender.getEmail());
+            }
         } else {
             logger.warn("Skipping APNs notification for self-addressed message {}", saved.getId());
         }
-        return messageDto;
+        return responseDto;
     }
 
     @Transactional
@@ -166,20 +201,32 @@ public class MessageService {
         if (!"MESSAGE".equals(message.getMessageType())) {
             throw new IllegalArgumentException("このメッセージは編集できません");
         }
-        message.setContent(content.trim());
+        User receiver = userRepository.findById(message.getReceiverId())
+                .orElseThrow(() -> new IllegalStateException("受信者が見つかりません"));
+        MessageMentionService.Resolution resolution = mentionService.resolve(
+                content.trim(), userId, List.of(receiver), null);
+        if (resolution.content().length() > 1000) {
+            throw new IllegalArgumentException("メッセージは1000文字以内で入力してください");
+        }
+        message.setContent(resolution.content());
         Message saved = messageRepository.save(message);
+        mentionService.deleteForMessage(messageId, null);
+        mentionService.save(messageId, null, resolution);
         User sender = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("送信者が見つかりません"));
-        User receiver = userRepository.findById(saved.getReceiverId())
-                .orElseThrow(() -> new IllegalArgumentException("受信者が見つかりません"));
         MessageDto dto = new MessageDto(
                 saved,
                 sender.getPublicId(),
                 sender.getEmail(),
                 receiver.getPublicId(),
                 chatProfileService.displayNameForContact(userId, receiver.getId()));
+        dto.setMentions(mentionService.forMessage(messageId, null, receiver.getId()));
         messageWebSocketHandler.sendToUser(saved.getReceiverId(), dto);
-        messageWebSocketHandler.sendToUser(saved.getSenderId(), dto);
+        MessageDto senderDto = new MessageDto(
+                saved, sender.getPublicId(), sender.getEmail(), receiver.getPublicId(),
+                chatProfileService.displayNameForContact(userId, receiver.getId()));
+        senderDto.setMentions(mentionService.forMessage(messageId, null, sender.getId()));
+        messageWebSocketHandler.sendToUser(saved.getSenderId(), senderDto);
         return dto;
     }
 
@@ -200,7 +247,7 @@ public class MessageService {
                 .collect(Collectors.toSet());
         Map<Long, String> publicIds = userRepository.findAllById(participantIds).stream()
                 .collect(Collectors.toMap(User::getId, User::getPublicId));
-        return history.stream()
+        List<MessageDto> result = history.stream()
                 .map(message -> new MessageDto(
                         message,
                         publicIds.get(message.getSenderId()),
@@ -208,6 +255,16 @@ public class MessageService {
                             publicIds.get(message.getReceiverId()),
                             chatProfileService.displayNameForContact(message.getSenderId(), message.getReceiverId())))
                 .collect(Collectors.toList());
+        Map<Long, List<com.reme.re_me.dto.MessageMentionDto>> mentions =
+                mentionService.forMessages(
+                        history.stream().map(Message::getId).toList(), null, userId);
+        Map<Long, List<MessageReactionDto>> reactions =
+                messageReactionService.forDirectMessagesById(history, userId);
+        for (int index = 0; index < history.size(); index++) {
+            result.get(index).setReactions(reactions.getOrDefault(history.get(index).getId(), List.of()));
+            result.get(index).setMentions(mentions.getOrDefault(history.get(index).getId(), List.of()));
+        }
+        return result;
     }
     
     // 会話相手の一覧を取得

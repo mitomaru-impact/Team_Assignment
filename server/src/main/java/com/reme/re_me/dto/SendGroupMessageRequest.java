@@ -4,6 +4,7 @@ public class SendGroupMessageRequest {
     private String userId;
     private String content;
     private Long replyToMessageId;
+    private boolean silent;
 
     public String getUserId() { return userId; }
     public void setUserId(String userId) { this.userId = userId; }
@@ -11,4 +12,6 @@ public class SendGroupMessageRequest {
     public void setContent(String content) { this.content = content; }
     public Long getReplyToMessageId() { return replyToMessageId; }
     public void setReplyToMessageId(Long replyToMessageId) { this.replyToMessageId = replyToMessageId; }
+    public boolean isSilent() { return silent; }
+    public void setSilent(boolean silent) { this.silent = silent; }
 }
