@@ -6,6 +6,8 @@ import com.reme.re_me.dto.SendMessageRequest;
 import com.reme.re_me.dto.EditMessageRequest;
 import com.reme.re_me.dto.ToggleMessageReactionRequest;
 import com.reme.re_me.dto.ConversationMuteRequest;
+import com.reme.re_me.dto.UserBlockRequest;
+import com.reme.re_me.dto.UpdateBlockedUserProfileRequest;
 import com.reme.re_me.service.ConversationMuteService;
 import com.reme.re_me.service.ChatProfileService;
 import com.reme.re_me.service.MessageReactionService;
@@ -13,6 +15,7 @@ import com.reme.re_me.service.MessageRecallService;
 import com.reme.re_me.service.MessageService;
 import com.reme.re_me.service.PublicUserIdService;
 import com.reme.re_me.service.UnreadBadgeService;
+import com.reme.re_me.service.UserBlockService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -32,6 +35,7 @@ public class MessageController {
     private final MessageRecallService messageRecallService;
     private final UnreadBadgeService unreadBadgeService;
     private final ConversationMuteService conversationMuteService;
+    private final UserBlockService userBlockService;
 
     public MessageController(
             MessageService messageService,
@@ -40,7 +44,8 @@ public class MessageController {
             MessageReactionService messageReactionService,
             MessageRecallService messageRecallService,
             UnreadBadgeService unreadBadgeService,
-            ConversationMuteService conversationMuteService) {
+            ConversationMuteService conversationMuteService,
+            UserBlockService userBlockService) {
         this.messageService = messageService;
         this.chatProfileService = chatProfileService;
         this.publicUserIdService = publicUserIdService;
@@ -48,6 +53,49 @@ public class MessageController {
         this.messageRecallService = messageRecallService;
         this.unreadBadgeService = unreadBadgeService;
         this.conversationMuteService = conversationMuteService;
+        this.userBlockService = userBlockService;
+    }
+
+    @GetMapping("/blocks")
+    public ResponseEntity<?> getBlockedUsers(@RequestParam String userId) {
+        try {
+            return ResponseEntity.ok(userBlockService.list(userId));
+        } catch (RuntimeException exception) {
+            return ResponseEntity.badRequest().body(exception.getMessage());
+        }
+    }
+
+    @PostMapping("/blocks")
+    public ResponseEntity<?> blockUser(@RequestBody UserBlockRequest request) {
+        try {
+            userBlockService.block(request);
+            return ResponseEntity.noContent().build();
+        } catch (RuntimeException exception) {
+            return ResponseEntity.badRequest().body(exception.getMessage());
+        }
+    }
+
+    @DeleteMapping("/blocks")
+    public ResponseEntity<?> unblockUser(
+            @RequestParam String userId,
+            @RequestParam String targetEmail) {
+        try {
+            userBlockService.unblock(userId, targetEmail);
+            return ResponseEntity.noContent().build();
+        } catch (RuntimeException exception) {
+            return ResponseEntity.badRequest().body(exception.getMessage());
+        }
+    }
+
+    @PutMapping("/blocks/profile")
+    public ResponseEntity<?> updateBlockedUserProfile(
+            @RequestBody UpdateBlockedUserProfileRequest request) {
+        try {
+            userBlockService.updateVisibleProfile(request);
+            return ResponseEntity.noContent().build();
+        } catch (RuntimeException exception) {
+            return ResponseEntity.badRequest().body(exception.getMessage());
+        }
     }
 
     @GetMapping("/mutes")

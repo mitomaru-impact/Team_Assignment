@@ -43,6 +43,7 @@ public class MessageService {
     private final MessageReactionService messageReactionService;
     private final ConversationMuteService conversationMuteService;
     private final MessageMentionService mentionService;
+    private final UserBlockService userBlockService;
 
     public MessageService(MessageRepository messageRepository, UserRepository userRepository,
                           MessageWebSocketHandler messageWebSocketHandler,
@@ -53,7 +54,8 @@ public class MessageService {
                           PublicUserIdService publicUserIdService,
                           MessageReactionService messageReactionService,
                           ConversationMuteService conversationMuteService,
-                          MessageMentionService mentionService) {
+                          MessageMentionService mentionService,
+                          UserBlockService userBlockService) {
         this.messageRepository = messageRepository;
         this.userRepository = userRepository;
         this.messageWebSocketHandler = messageWebSocketHandler;
@@ -65,6 +67,7 @@ public class MessageService {
         this.messageReactionService = messageReactionService;
         this.conversationMuteService = conversationMuteService;
         this.mentionService = mentionService;
+        this.userBlockService = userBlockService;
     }
 
     // メッセージ送信処理
@@ -80,6 +83,8 @@ public class MessageService {
         User sender = publicUserIdService.resolve(request.getSenderId());
         User receiver = userRepository.findByEmail(request.getReceiverEmail())
                 .orElseThrow(() -> new RuntimeException("指定されたメールアドレスのユーザーが見つかりません"));
+        boolean blockedConversation = userBlockService.blocks(receiver.getId(), sender.getId())
+                || userBlockService.blocks(sender.getId(), receiver.getId());
         MessageMentionService.Resolution mentionResolution = mentionService.resolve(
                 request.getContent(), sender.getId(), List.of(receiver), null);
         if (mentionResolution.content().length() > 1000) {
@@ -167,7 +172,9 @@ public class MessageService {
                 unclassifiedForReceiver,
                 unclassifiedForReceiver ? "未分類" : senderDisplayName,
                 unclassifiedForReceiver ? "未分類に新しいメッセージがあります。" : saved.getContent());
-        messageWebSocketHandler.sendToUser(saved.getReceiverId(), messageDto);
+        if (!blockedConversation) {
+            messageWebSocketHandler.sendToUser(saved.getReceiverId(), messageDto);
+        }
         MessageDto responseDto = messageDto;
         if (!saved.getSenderId().equals(saved.getReceiverId())) {
             MessageDto senderDto = new MessageDto(
@@ -177,7 +184,7 @@ public class MessageService {
             senderDto.setMentions(mentionService.forMessage(saved.getId(), null, sender.getId()));
             messageWebSocketHandler.sendToUser(saved.getSenderId(), senderDto);
             responseDto = senderDto;
-            if (!request.isSilent() && notificationsAllowed) {
+            if (!blockedConversation && !request.isSilent() && notificationsAllowed) {
                 apnsPushNotificationService.sendNewMessage(
                         saved.getReceiverId(), saved.getId(), saved.getContent(),
                         senderDisplayName, sender.getEmail());
@@ -234,6 +241,9 @@ public class MessageService {
     public List<MessageDto> getChatHistory(Long userId, String targetEmail) {
         User targetUser = userRepository.findByEmail(targetEmail)
                 .orElseThrow(() -> new RuntimeException("相手ユーザーが見つかりません"));
+        if (userBlockService.blocks(userId, targetUser.getId())) {
+            return List.of();
+        }
 
         List<Message> history = messageRepository.findChatHistory(userId, targetUser.getId());
         LocalDateTime clearedAt = getClearedAt(userId, targetUser.getId());

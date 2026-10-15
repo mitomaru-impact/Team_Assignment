@@ -82,8 +82,10 @@ public class MessageWebSocketHandler extends TextWebSocketHandler {
             }
             session.getAttributes().put(USER_ID_ATTRIBUTE, userId);
             sessions.computeIfAbsent(userId, ignored -> ConcurrentHashMap.newKeySet()).add(session);
+            logger.info("Message WebSocket connected for user {}", userId);
         } catch (IllegalArgumentException | org.springframework.web.server.ResponseStatusException exception) {
-            logger.warn("Rejected WebSocket connection with invalid user identity");
+            logger.warn("Rejected WebSocket connection with invalid user identity: {}",
+                    exception.getMessage());
             session.close(CloseStatus.BAD_DATA);
         }
     }
@@ -171,6 +173,8 @@ public class MessageWebSocketHandler extends TextWebSocketHandler {
     private void sendEventToUser(Long userId, Object event, String eventDescription) {
         Set<WebSocketSession> userSessions = sessions.get(userId);
         if (userSessions == null || userSessions.isEmpty()) {
+            logger.debug("No active WebSocket session for user {} while sending {}",
+                    userId, eventDescription);
             return;
         }
 
