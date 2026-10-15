@@ -1,0 +1,6034 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>超遠回りナビ</title>
+
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    >
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: "Yu Gothic", "Meiryo", sans-serif;
+            background: #10131a;
+            color: white;
+        }
+
+        .app {
+            display: flex;
+            height: 100vh;
+        }
+
+        /* ==================================================
+           左パネル
+        ================================================== */
+
+        .panel {
+            width: 440px;
+            flex-shrink: 0;
+            padding: 24px;
+
+            background: #171c26;
+
+            overflow-y: auto;
+
+            box-shadow: 5px 0 20px rgba(0,0,0,.4);
+
+            z-index: 2000;
+        }
+
+        h1 {
+            margin-top: 0;
+            margin-bottom: 8px;
+        }
+
+        .description {
+            color: #b8c0d0;
+            font-size: 14px;
+            line-height: 1.7;
+        }
+
+        label {
+            display: block;
+            margin-top: 20px;
+            margin-bottom: 7px;
+            font-weight: bold;
+        }
+
+        input {
+            width: 100%;
+            padding: 13px;
+
+            border-radius: 10px;
+            border: 1px solid #444;
+
+            background: #0e1219;
+
+            color: white;
+            font-size: 16px;
+        }
+
+        input:focus {
+            outline: 2px solid #5f8cff;
+        }
+
+        #routeButton {
+            width: 100%;
+            margin-top: 20px;
+            padding: 16px;
+
+            border: none;
+            border-radius: 12px;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #ff4b4b,
+                    #ff8a00
+                );
+
+            color: white;
+
+            font-size: 18px;
+            font-weight: bold;
+
+            cursor: pointer;
+        }
+
+        #routeButton:hover {
+            transform: scale(1.02);
+        }
+
+        #routeButton:disabled {
+            opacity: .5;
+            cursor: wait;
+        }
+
+        #status {
+            margin-top: 15px;
+            padding: 12px;
+
+            border-radius: 10px;
+
+            background: #222938;
+            color: #ffd75e;
+
+            line-height: 1.5;
+        }
+
+        /* ==================================================
+           結果
+        ================================================== */
+
+        .summary {
+            display: none;
+
+            margin-top: 15px;
+            padding: 15px;
+
+            border-radius: 10px;
+
+            background: #222938;
+        }
+
+        .summary div {
+            margin: 8px 0;
+            line-height: 1.5;
+        }
+
+        .cost-total {
+            margin-top: 12px !important;
+            padding: 10px;
+
+            border-radius: 9px;
+
+            background: rgba(60,214,120,.12);
+
+            border: 1px solid rgba(60,214,120,.35);
+
+            font-size: 17px;
+        }
+
+        /* ==================================================
+           経路タイムライン
+        ================================================== */
+
+        #routeList {
+            margin-top: 20px;
+        }
+
+        .route-step {
+            display: flex;
+            gap: 14px;
+        }
+
+        .route-left {
+            width: 45px;
+            flex-shrink: 0;
+
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .route-number {
+            width: 38px;
+            height: 38px;
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            border-radius: 50%;
+
+            background: white;
+            color: #111;
+
+            border: 3px solid #ff5c5c;
+
+            font-size: 13px;
+            font-weight: bold;
+        }
+
+        .route-line {
+            width: 4px;
+            flex: 1;
+            min-height: 38px;
+
+            margin-top: 4px;
+
+            border-radius: 10px;
+
+            background: #3b4352;
+        }
+
+        .route-card {
+            flex: 1;
+
+            margin-bottom: 8px;
+            padding: 12px 14px;
+
+            border-radius: 12px;
+
+            background: #222938;
+
+            cursor: pointer;
+
+            transition: .2s;
+        }
+
+        .route-card:hover {
+            background: #2c3445;
+            transform: translateX(3px);
+        }
+
+        .route-place-name {
+            font-size: 15px;
+            font-weight: bold;
+            line-height: 1.5;
+        }
+
+        .route-country {
+            margin-top: 3px;
+
+            color: #929daf;
+
+            font-size: 12px;
+        }
+
+        .route-hint {
+            margin-top: 5px;
+
+            color: #758199;
+
+            font-size: 11px;
+        }
+
+        /* ==================================================
+           移動区間
+        ================================================== */
+
+        .route-transport {
+            margin-left: 59px;
+            margin-bottom: 8px;
+
+            padding: 10px 12px;
+
+            border-radius: 10px;
+
+            font-size: 13px;
+        }
+
+        .transport-top {
+            display: flex;
+
+            justify-content: space-between;
+            align-items: center;
+
+            gap: 10px;
+        }
+
+        .transport-name {
+            font-weight: bold;
+        }
+
+        .transport-distance {
+            opacity: .8;
+            white-space: nowrap;
+        }
+
+        .transport-cost {
+            margin-top: 7px;
+
+            color: #81e6a4;
+
+            font-weight: bold;
+        }
+
+        .mode-car {
+            background: rgba(255,159,67,.16);
+            border-left: 4px solid #ff9f43;
+        }
+
+        .mode-train {
+            background: rgba(77,171,247,.16);
+            border-left: 4px solid #4dabf7;
+        }
+
+        .mode-walk {
+            background: rgba(105,219,124,.16);
+            border-left: 4px solid #69db7c;
+        }
+
+        .mode-ship {
+            background: rgba(34,184,207,.16);
+            border-left: 4px solid #22b8cf;
+        }
+
+        .mode-plane {
+            background: rgba(255,107,107,.16);
+            border-left: 4px solid #ff6b6b;
+        }
+
+        .map-button {
+            display: inline-block;
+
+            margin-left: 59px;
+            margin-bottom: 15px;
+
+            padding: 7px 11px;
+
+            border-radius: 8px;
+
+            background: #3c465b;
+
+            color: white;
+
+            text-decoration: none;
+
+            font-size: 12px;
+        }
+
+        .map-button:hover {
+            background: #4d5970;
+        }
+
+        /* ==================================================
+           左側説明
+        ================================================== */
+
+        .legend {
+            margin-top: 20px;
+            padding: 12px;
+
+            border-radius: 10px;
+
+            background: #222938;
+
+            font-size: 13px;
+            line-height: 1.9;
+        }
+
+        .cost-info {
+            margin-top: 15px;
+            padding: 12px;
+
+            border-radius: 10px;
+
+            background: #1c2a25;
+
+            color: #c8f2d5;
+
+            font-size: 12px;
+            line-height: 1.7;
+        }
+
+        .warning {
+            margin-top: 15px;
+            padding: 12px;
+
+            border-radius: 10px;
+
+            background: #2a2230;
+
+            color: #cfc7d5;
+
+            font-size: 12px;
+            line-height: 1.6;
+        }
+
+        /* ==================================================
+           地図
+        ================================================== */
+
+        .map-area {
+            position: relative;
+
+            flex: 1;
+            min-width: 0;
+
+            height: 100vh;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+
+        .leaflet-tile-pane {
+            filter:
+                grayscale(30%)
+                brightness(1.07)
+                contrast(.9);
+
+            opacity: .82;
+        }
+
+        /* ==================================================
+           地図右上
+        ================================================== */
+
+        .map-controls {
+            position: absolute;
+
+            top: 15px;
+            right: 15px;
+
+            z-index: 1500;
+
+            width: 180px;
+
+            padding: 12px;
+
+            border-radius: 13px;
+
+            background: rgba(23,28,38,.93);
+
+            backdrop-filter: blur(7px);
+
+            box-shadow: 0 4px 18px rgba(0,0,0,.35);
+
+            color: white;
+        }
+
+        .map-control-title {
+            margin-bottom: 8px;
+
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .map-controls button {
+            width: 100%;
+
+            margin: 4px 0;
+            padding: 9px;
+
+            border: none;
+            border-radius: 8px;
+
+            background: #353e50;
+
+            color: white;
+
+            cursor: pointer;
+
+            font-size: 12px;
+        }
+
+        .map-controls button:hover {
+            background: #465269;
+        }
+
+        .map-legend {
+            margin-top: 10px;
+            padding-top: 8px;
+
+            border-top: 1px solid #4a5262;
+
+            font-size: 12px;
+            line-height: 2;
+        }
+
+        .legend-line {
+            display: inline-block;
+
+            width: 24px;
+            height: 5px;
+
+            margin-right: 5px;
+
+            vertical-align: middle;
+
+            border-radius: 5px;
+
+            box-shadow: 0 0 0 2px white;
+        }
+
+        .car-line {
+            background: #ff9f43;
+        }
+
+        .train-line {
+            background: #4dabf7;
+        }
+
+        .walk-line {
+            background: #69db7c;
+        }
+
+        .ship-line {
+            background: #22b8cf;
+        }
+
+        .plane-line {
+            background: #ff6b6b;
+        }
+
+        /* ==================================================
+           地図上マーカー
+        ================================================== */
+
+        .place-marker {
+            position: relative;
+
+            width: 48px;
+            height: 48px;
+
+            display: flex;
+
+            justify-content: center;
+            align-items: center;
+
+            border-radius: 50%;
+
+            background: white;
+
+            border: 4px solid #252b38;
+
+            font-size: 25px;
+
+            box-shadow: 0 3px 12px rgba(0,0,0,.45);
+        }
+
+        .step-number {
+            position: absolute;
+
+            top: -11px;
+            right: -11px;
+
+            min-width: 26px;
+            height: 26px;
+
+            padding: 0 5px;
+
+            display: flex;
+
+            justify-content: center;
+            align-items: center;
+
+            border-radius: 20px;
+
+            border: 3px solid white;
+
+            background: #ff3b3b;
+
+            color: white;
+
+            font-size: 11px;
+            font-weight: bold;
+
+            box-shadow: 0 2px 6px rgba(0,0,0,.4);
+        }
+
+        .transport-icon {
+            width: 42px;
+            height: 42px;
+
+            display: flex;
+
+            justify-content: center;
+            align-items: center;
+
+            border-radius: 50%;
+
+            border: 3px solid #222;
+
+            background: white;
+
+            font-size: 24px;
+
+            box-shadow: 0 3px 10px rgba(0,0,0,.45);
+        }
+
+        /* ==================================================
+           経由地情報モーダル
+        ================================================== */
+
+        .place-modal {
+            display: none;
+
+            position: fixed;
+
+            top: 0;
+            left: 0;
+
+            width: 100%;
+            height: 100%;
+
+            z-index: 5000;
+
+            background: rgba(0,0,0,.60);
+
+            align-items: center;
+            justify-content: center;
+
+            padding: 20px;
+        }
+
+        .place-modal-box {
+            position: relative;
+
+            width: 100%;
+            max-width: 480px;
+
+            max-height: 88vh;
+
+            overflow-y: auto;
+
+            padding: 26px;
+
+            border-radius: 18px;
+
+            background: #1c2230;
+
+            box-shadow:
+                0 15px 50px
+                rgba(0,0,0,.55);
+        }
+
+        .place-close {
+            position: absolute;
+
+            top: 12px;
+            right: 14px;
+
+            width: 36px;
+            height: 36px;
+
+            border: none;
+            border-radius: 50%;
+
+            background: #333c4e;
+
+            color: white;
+
+            font-size: 22px;
+
+            cursor: pointer;
+        }
+
+        .place-close:hover {
+            background: #ff5555;
+        }
+
+        .place-info-emoji {
+            font-size: 48px;
+            margin-bottom: 6px;
+        }
+
+        .place-modal-box h2 {
+            margin:
+                5px
+                40px
+                5px
+                0;
+
+            font-size: 24px;
+        }
+
+        .place-info-country {
+            color: #9fa9bc;
+
+            margin-bottom: 20px;
+
+            font-size: 14px;
+        }
+
+        .place-info-section {
+            margin-top: 15px;
+            padding: 14px;
+
+            border-radius: 12px;
+
+            background: #252c3b;
+
+            line-height: 1.7;
+
+            font-size: 14px;
+        }
+
+        .place-info-title {
+            margin-bottom: 7px;
+
+            font-weight: bold;
+
+            color: #ffd76a;
+        }
+
+        .place-description {
+            color: #d5dbe5;
+        }
+
+        .place-info-buttons {
+            display: flex;
+
+            gap: 10px;
+
+            margin-top: 20px;
+        }
+
+        .place-info-button {
+            flex: 1;
+
+            display: block;
+
+            padding: 11px;
+
+            border-radius: 9px;
+
+            text-align: center;
+
+            text-decoration: none;
+
+            background: #4285f4;
+
+            color: white;
+
+            font-size: 13px;
+
+            font-weight: bold;
+        }
+
+        .place-info-button:hover {
+            opacity: .85;
+        }
+
+        .wiki-button {
+            background: #555e70;
+        }
+
+        /* ==================================================
+           スマホ
+        ================================================== */
+
+        @media(max-width: 800px) {
+
+            .app {
+                flex-direction: column;
+            }
+
+            .panel {
+                width: 100%;
+                height: 55%;
+            }
+
+            .map-area {
+                width: 100%;
+                height: 45%;
+            }
+
+            .map-controls {
+                width: 155px;
+
+                top: 10px;
+                right: 10px;
+            }
+
+            .place-info-buttons {
+                flex-direction: column;
+            }
+
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+<div class="app">
+
+    <!-- ==================================================
+         左パネル
+    ================================================== -->
+
+    <div class="panel">
+
+        <h1>
+            🌍 超遠回りナビ
+        </h1>
+
+        <div class="description">
+
+            目的地には向かいます。
+
+            <br>
+
+            ただし、素直に向かうとは言っていません。
+
+            <br><br>
+
+            🚗 車　
+            🚆 電車　
+            🚢 船　
+            ✈️ 飛行機
+
+            <br><br>
+
+            経由地をクリックすると、
+            その場所の情報を見ることができます。
+
+        </div>
+
+
+        <label>
+            📍 出発地
+        </label>
+
+        <input
+            id="start"
+            placeholder="例：福岡県福岡市"
+        >
+
+
+        <label>
+            🏁 目的地
+        </label>
+
+        <input
+            id="goal"
+            placeholder="例：熊本県熊本市"
+        >
+
+
+        <button id="routeButton">
+            🎲 超遠回りルート生成
+        </button>
+
+
+        <div id="status">
+            出発地と目的地を入力してください。
+        </div>
+
+
+        <div
+            id="summary"
+            class="summary"
+        >
+
+            <div id="routeType"></div>
+
+            <div id="chaos"></div>
+
+            <div id="stopCount"></div>
+
+            <div id="totalDistance"></div>
+
+            <div
+                id="totalCost"
+                class="cost-total"
+            ></div>
+
+            <div id="countries"></div>
+
+        </div>
+
+
+        <div id="routeList"></div>
+
+
+        <div class="legend">
+
+            <b>💡 操作方法</b>
+
+            <br>
+
+            📌 経由地をクリック
+            → 場所の詳しい情報
+
+            <br>
+
+            🌍 ルート全体
+            → 地図を全体表示
+
+            <br>
+
+            🇯🇵 日本を見る
+            → 日本へズーム
+
+        </div>
+
+
+        <div class="cost-info">
+
+            <b>💴 料金について</b>
+
+            <br>
+
+            現在の料金は距離をもとにした参考料金です。
+
+            <br><br>
+
+            🚗 約25円 / km
+
+            <br>
+
+            🚆 約20円 / km
+
+            <br>
+
+
+            <br>
+
+            🚢 約15円 / km
+
+            <br>
+
+            ✈️ 基本5,000円＋約12円 / km
+
+        </div>
+
+
+        <div class="warning">
+
+            ⚠️ 娯楽用のナビです。
+
+            <br>
+
+            実際の交通機関の運行や料金を
+            保証するものではありません。
+
+        </div>
+
+    </div>
+
+
+    <!-- ==================================================
+         地図
+    ================================================== -->
+
+    <div class="map-area">
+
+        <div id="map"></div>
+
+
+        <div class="map-controls">
+
+            <div class="map-control-title">
+                🗺 地図表示
+            </div>
+
+
+            <button
+                type="button"
+                onclick="showWholeRoute()"
+            >
+                🌍 ルート全体
+            </button>
+
+
+            <button
+                type="button"
+                onclick="showJapan()"
+            >
+                🇯🇵 日本を見る
+            </button>
+
+
+            <div class="map-legend">
+
+                <div>
+                    <span
+                        class="legend-line car-line"
+                    ></span>
+                    🚗 車
+                </div>
+
+                <div>
+                    <span
+                        class="legend-line train-line"
+                    ></span>
+                    🚆 電車
+                </div>
+
+                <div>
+                    <span
+                        class="legend-line ship-line"
+                    ></span>
+                    🚢 船
+                </div>
+
+                <div>
+                    <span
+                        class="legend-line plane-line"
+                    ></span>
+                    ✈️ 飛行機
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- ==================================================
+     経由地情報
+================================================== -->
+
+<div
+    id="placeModal"
+    class="place-modal"
+    onclick="closePlaceInfo(event)"
+>
+
+    <div
+        class="place-modal-box"
+        onclick="event.stopPropagation()"
+    >
+
+        <button
+            class="place-close"
+            onclick="closePlaceInfo()"
+        >
+            ×
+        </button>
+
+
+        <div
+            id="placeInfoEmoji"
+            class="place-info-emoji"
+        >
+            📌
+        </div>
+
+
+        <h2 id="placeInfoName">
+            経由地
+        </h2>
+
+
+        <div
+            id="placeInfoCountry"
+            class="place-info-country"
+        ></div>
+
+
+        <div class="place-info-section">
+
+            <div class="place-info-title">
+                📍 基本情報
+            </div>
+
+            <div id="placeInfoType"></div>
+
+            <div id="placeInfoPosition"></div>
+
+        </div>
+
+
+        <div class="place-info-section">
+
+            <div class="place-info-title">
+                📝 この場所について
+            </div>
+
+            <div
+                id="placeInfoDescription"
+                class="place-description"
+            ></div>
+
+        </div>
+
+
+        <div class="place-info-buttons">
+
+            <a
+                id="placeGoogleLink"
+                target="_blank"
+                class="place-info-button"
+            >
+                🗺 Googleマップ
+            </a>
+
+
+            <a
+                id="placeWikiLink"
+                target="_blank"
+                class="place-info-button wiki-button"
+            >
+                📖 Wikipedia
+            </a>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<script>
+
+/* ======================================================
+   地図
+====================================================== */
+
+const map =
+    L.map(
+        "map",
+        {
+            worldCopyJump:true,
+            minZoom:2,
+            zoomControl:true
+        }
+    )
+    .setView(
+        [30,135],
+        4
+    );
+
+
+L.tileLayer(
+
+    "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+
+    {
+        attribution:
+            "&copy; OpenStreetMap contributors",
+
+        maxZoom:19
+    }
+
+).addTo(map);
+
+
+/* ======================================================
+   地図レイヤー
+====================================================== */
+
+map.createPane(
+    "routeShadow"
+);
+
+map.getPane(
+    "routeShadow"
+)
+.style.zIndex =
+    410;
+
+
+map.createPane(
+    "routeMain"
+);
+
+map.getPane(
+    "routeMain"
+)
+.style.zIndex =
+    420;
+
+
+map.createPane(
+    "transportIcons"
+);
+
+map.getPane(
+    "transportIcons"
+)
+.style.zIndex =
+    500;
+
+
+map.createPane(
+    "placeMarkers"
+);
+
+map.getPane(
+    "placeMarkers"
+)
+.style.zIndex =
+    600;
+
+
+const routeLayer =
+    L.layerGroup()
+    .addTo(map);
+
+
+let currentRouteBounds =
+    null;
+
+
+/* ======================================================
+   日本都市
+====================================================== */
+
+const japanCities = [
+
+    {
+        name:"札幌",
+        country:"日本",
+        type:"city",
+        lat:43.0618,
+        lng:141.3545
+    },
+
+    {
+        name:"仙台",
+        country:"日本",
+        type:"city",
+        lat:38.2682,
+        lng:140.8694
+    },
+
+    {
+        name:"東京",
+        country:"日本",
+        type:"city",
+        lat:35.6762,
+        lng:139.6503
+    },
+
+    {
+        name:"横浜",
+        country:"日本",
+        type:"city",
+        lat:35.4437,
+        lng:139.638
+    },
+
+    {
+        name:"名古屋",
+        country:"日本",
+        type:"city",
+        lat:35.1815,
+        lng:136.9066
+    },
+
+    {
+        name:"京都",
+        country:"日本",
+        type:"city",
+        lat:35.0116,
+        lng:135.7681
+    },
+
+    {
+        name:"大阪",
+        country:"日本",
+        type:"city",
+        lat:34.6937,
+        lng:135.5023
+    },
+
+    {
+        name:"神戸",
+        country:"日本",
+        type:"city",
+        lat:34.6901,
+        lng:135.1955
+    },
+
+    {
+        name:"広島",
+        country:"日本",
+        type:"city",
+        lat:34.3853,
+        lng:132.4553
+    },
+
+    {
+        name:"高松",
+        country:"日本",
+        type:"city",
+        lat:34.3428,
+        lng:134.0466
+    },
+
+    {
+        name:"福岡",
+        country:"日本",
+        type:"city",
+        lat:33.5902,
+        lng:130.4017
+    },
+
+    {
+        name:"長崎",
+        country:"日本",
+        type:"city",
+        lat:32.7503,
+        lng:129.8779
+    },
+
+    {
+        name:"熊本",
+        country:"日本",
+        type:"city",
+        lat:32.8031,
+        lng:130.7079
+    },
+
+    {
+        name:"鹿児島",
+        country:"日本",
+        type:"city",
+        lat:31.5966,
+        lng:130.5571
+    },
+
+    {
+        name:"那覇",
+        country:"日本",
+        type:"city",
+        lat:26.2124,
+        lng:127.6809
+    }
+
+];
+
+
+/* ======================================================
+   日本ゲートウェイ
+====================================================== */
+
+const japanGateways = [
+
+    {
+        name:"福岡",
+
+        city:{
+            name:"福岡",
+            country:"日本",
+            type:"city",
+            lat:33.5902,
+            lng:130.4017
+        },
+
+        port:{
+            name:"博多港",
+            country:"日本",
+            type:"port",
+            lat:33.606,
+            lng:130.399
+        },
+
+        airport:{
+            name:"福岡空港",
+            country:"日本",
+            type:"airport",
+            lat:33.5859,
+            lng:130.4507
+        }
+    },
+
+
+    {
+        name:"大阪",
+
+        city:{
+            name:"大阪",
+            country:"日本",
+            type:"city",
+            lat:34.6937,
+            lng:135.5023
+        },
+
+        port:{
+            name:"大阪港",
+            country:"日本",
+            type:"port",
+            lat:34.657,
+            lng:135.431
+        },
+
+        airport:{
+            name:"関西国際空港",
+            country:"日本",
+            type:"airport",
+            lat:34.4347,
+            lng:135.2441
+        }
+    },
+
+
+    {
+        name:"東京",
+
+        city:{
+            name:"東京",
+            country:"日本",
+            type:"city",
+            lat:35.6762,
+            lng:139.6503
+        },
+
+        port:{
+            name:"横浜港",
+            country:"日本",
+            type:"port",
+            lat:35.455,
+            lng:139.638
+        },
+
+        airport:{
+            name:"羽田空港",
+            country:"日本",
+            type:"airport",
+            lat:35.5494,
+            lng:139.7798
+        }
+    },
+
+
+    {
+        name:"鹿児島",
+
+        city:{
+            name:"鹿児島",
+            country:"日本",
+            type:"city",
+            lat:31.5966,
+            lng:130.5571
+        },
+
+        port:{
+            name:"鹿児島港",
+            country:"日本",
+            type:"port",
+            lat:31.596,
+            lng:130.563
+        },
+
+        airport:{
+            name:"鹿児島空港",
+            country:"日本",
+            type:"airport",
+            lat:31.8034,
+            lng:130.7194
+        }
+    },
+
+
+    {
+        name:"那覇",
+
+        city:{
+            name:"那覇",
+            country:"日本",
+            type:"city",
+            lat:26.2124,
+            lng:127.6809
+        },
+
+        port:{
+            name:"那覇港",
+            country:"日本",
+            type:"port",
+            lat:26.216,
+            lng:127.676
+        },
+
+        airport:{
+            name:"那覇空港",
+            country:"日本",
+            type:"airport",
+            lat:26.1958,
+            lng:127.6458
+        }
+    }
+
+];
+
+
+/* ======================================================
+   港のある海外
+====================================================== */
+
+const portHubs = [
+
+    {
+        name:"釜山",
+        country:"韓国",
+        region:"アジア",
+
+        port:{
+            name:"釜山港",
+            country:"韓国",
+            type:"port",
+            lat:35.102,
+            lng:129.040
+        },
+
+        city:{
+            name:"釜山",
+            country:"韓国",
+            type:"city",
+            lat:35.1796,
+            lng:129.0756
+        },
+
+        airport:{
+            name:"金海国際空港",
+            country:"韓国",
+            type:"airport",
+            lat:35.1796,
+            lng:128.9382
+        }
+    },
+
+
+    {
+        name:"上海",
+        country:"中国",
+        region:"アジア",
+
+        port:{
+            name:"上海港",
+            country:"中国",
+            type:"port",
+            lat:31.230,
+            lng:121.490
+        },
+
+        city:{
+            name:"上海",
+            country:"中国",
+            type:"city",
+            lat:31.2304,
+            lng:121.4737
+        },
+
+        airport:{
+            name:"上海浦東国際空港",
+            country:"中国",
+            type:"airport",
+            lat:31.1443,
+            lng:121.8083
+        }
+    },
+
+
+    {
+        name:"香港",
+        country:"香港",
+        region:"アジア",
+
+        port:{
+            name:"香港港",
+            country:"香港",
+            type:"port",
+            lat:22.293,
+            lng:114.169
+        },
+
+        city:{
+            name:"香港",
+            country:"香港",
+            type:"city",
+            lat:22.3193,
+            lng:114.1694
+        },
+
+        airport:{
+            name:"香港国際空港",
+            country:"香港",
+            type:"airport",
+            lat:22.308,
+            lng:113.9185
+        }
+    },
+
+
+    {
+        name:"台北",
+        country:"台湾",
+        region:"アジア",
+
+        port:{
+            name:"基隆港",
+            country:"台湾",
+            type:"port",
+            lat:25.129,
+            lng:121.741
+        },
+
+        city:{
+            name:"台北",
+            country:"台湾",
+            type:"city",
+            lat:25.033,
+            lng:121.5654
+        },
+
+        airport:{
+            name:"台湾桃園国際空港",
+            country:"台湾",
+            type:"airport",
+            lat:25.0797,
+            lng:121.2342
+        }
+    },
+
+
+    {
+        name:"マニラ",
+        country:"フィリピン",
+        region:"アジア",
+
+        port:{
+            name:"マニラ港",
+            country:"フィリピン",
+            type:"port",
+            lat:14.595,
+            lng:120.955
+        },
+
+        city:{
+            name:"マニラ",
+            country:"フィリピン",
+            type:"city",
+            lat:14.5995,
+            lng:120.9842
+        },
+
+        airport:{
+            name:"ニノイ・アキノ国際空港",
+            country:"フィリピン",
+            type:"airport",
+            lat:14.5086,
+            lng:121.0198
+        }
+    },
+
+
+    {
+        name:"シンガポール",
+        country:"シンガポール",
+        region:"アジア",
+
+        port:{
+            name:"シンガポール港",
+            country:"シンガポール",
+            type:"port",
+            lat:1.264,
+            lng:103.820
+        },
+
+        city:{
+            name:"シンガポール",
+            country:"シンガポール",
+            type:"city",
+            lat:1.3521,
+            lng:103.8198
+        },
+
+        airport:{
+            name:"チャンギ国際空港",
+            country:"シンガポール",
+            type:"airport",
+            lat:1.3644,
+            lng:103.9915
+        }
+    },
+
+
+    {
+        name:"ホーチミン",
+        country:"ベトナム",
+        region:"アジア",
+
+        port:{
+            name:"ホーチミン港",
+            country:"ベトナム",
+            type:"port",
+            lat:10.756,
+            lng:106.706
+        },
+
+        city:{
+            name:"ホーチミン",
+            country:"ベトナム",
+            type:"city",
+            lat:10.8231,
+            lng:106.6297
+        },
+
+        airport:{
+            name:"タンソンニャット国際空港",
+            country:"ベトナム",
+            type:"airport",
+            lat:10.8188,
+            lng:106.6519
+        }
+    }
+
+];
+
+
+/* ======================================================
+   海外空港
+====================================================== */
+
+const airOnlyHubs = [
+
+    {
+        name:"バンコク",
+        country:"タイ",
+        region:"アジア",
+
+        city:{
+            name:"バンコク",
+            country:"タイ",
+            type:"city",
+            lat:13.7563,
+            lng:100.5018
+        },
+
+        airport:{
+            name:"スワンナプーム国際空港",
+            country:"タイ",
+            type:"airport",
+            lat:13.6900,
+            lng:100.7501
+        }
+    },
+
+
+    {
+        name:"ニューデリー",
+        country:"インド",
+        region:"アジア",
+
+        city:{
+            name:"ニューデリー",
+            country:"インド",
+            type:"city",
+            lat:28.6139,
+            lng:77.2090
+        },
+
+        airport:{
+            name:"インディラ・ガンディー国際空港",
+            country:"インド",
+            type:"airport",
+            lat:28.5562,
+            lng:77.1000
+        }
+    },
+
+
+    {
+        name:"ドバイ",
+        country:"UAE",
+        region:"中東",
+
+        city:{
+            name:"ドバイ",
+            country:"UAE",
+            type:"city",
+            lat:25.2048,
+            lng:55.2708
+        },
+
+        airport:{
+            name:"ドバイ国際空港",
+            country:"UAE",
+            type:"airport",
+            lat:25.2532,
+            lng:55.3657
+        }
+    },
+
+
+    {
+        name:"シドニー",
+        country:"オーストラリア",
+        region:"オセアニア",
+
+        city:{
+            name:"シドニー",
+            country:"オーストラリア",
+            type:"city",
+            lat:-33.8688,
+            lng:151.2093
+        },
+
+        airport:{
+            name:"シドニー国際空港",
+            country:"オーストラリア",
+            type:"airport",
+            lat:-33.9399,
+            lng:151.1753
+        }
+    },
+
+
+    {
+        name:"メルボルン",
+        country:"オーストラリア",
+        region:"オセアニア",
+
+        city:{
+            name:"メルボルン",
+            country:"オーストラリア",
+            type:"city",
+            lat:-37.8136,
+            lng:144.9631
+        },
+
+        airport:{
+            name:"メルボルン空港",
+            country:"オーストラリア",
+            type:"airport",
+            lat:-37.669,
+            lng:144.841
+        }
+    },
+
+
+    {
+        name:"オークランド",
+        country:"ニュージーランド",
+        region:"オセアニア",
+
+        city:{
+            name:"オークランド",
+            country:"ニュージーランド",
+            type:"city",
+            lat:-36.8509,
+            lng:174.7645
+        },
+
+        airport:{
+            name:"オークランド国際空港",
+            country:"ニュージーランド",
+            type:"airport",
+            lat:-37.0082,
+            lng:174.785
+        }
+    },
+
+
+    {
+        name:"ホノルル",
+        country:"アメリカ",
+        region:"北米",
+
+        city:{
+            name:"ホノルル",
+            country:"アメリカ",
+            type:"city",
+            lat:21.3069,
+            lng:-157.8583
+        },
+
+        airport:{
+            name:"ホノルル国際空港",
+            country:"アメリカ",
+            type:"airport",
+            lat:21.3187,
+            lng:-157.9225
+        }
+    },
+
+
+    {
+        name:"ロサンゼルス",
+        country:"アメリカ",
+        region:"北米",
+
+        city:{
+            name:"ロサンゼルス",
+            country:"アメリカ",
+            type:"city",
+            lat:34.0522,
+            lng:-118.2437
+        },
+
+        airport:{
+            name:"ロサンゼルス国際空港",
+            country:"アメリカ",
+            type:"airport",
+            lat:33.9416,
+            lng:-118.4085
+        }
+    },
+
+
+    {
+        name:"ニューヨーク",
+        country:"アメリカ",
+        region:"北米",
+
+        city:{
+            name:"ニューヨーク",
+            country:"アメリカ",
+            type:"city",
+            lat:40.7128,
+            lng:-74.006
+        },
+
+        airport:{
+            name:"JFK国際空港",
+            country:"アメリカ",
+            type:"airport",
+            lat:40.6413,
+            lng:-73.7781
+        }
+    },
+
+
+    {
+        name:"バンクーバー",
+        country:"カナダ",
+        region:"北米",
+
+        city:{
+            name:"バンクーバー",
+            country:"カナダ",
+            type:"city",
+            lat:49.2827,
+            lng:-123.1207
+        },
+
+        airport:{
+            name:"バンクーバー国際空港",
+            country:"カナダ",
+            type:"airport",
+            lat:49.1967,
+            lng:-123.1815
+        }
+    },
+
+
+    {
+        name:"ロンドン",
+        country:"イギリス",
+        region:"ヨーロッパ",
+
+        city:{
+            name:"ロンドン",
+            country:"イギリス",
+            type:"city",
+            lat:51.5074,
+            lng:-0.1278
+        },
+
+        airport:{
+            name:"ヒースロー空港",
+            country:"イギリス",
+            type:"airport",
+            lat:51.4700,
+            lng:-0.4543
+        }
+    },
+
+
+    {
+        name:"パリ",
+        country:"フランス",
+        region:"ヨーロッパ",
+
+        city:{
+            name:"パリ",
+            country:"フランス",
+            type:"city",
+            lat:48.8566,
+            lng:2.3522
+        },
+
+        airport:{
+            name:"シャルル・ド・ゴール空港",
+            country:"フランス",
+            type:"airport",
+            lat:49.0097,
+            lng:2.5479
+        }
+    },
+
+
+    {
+        name:"フランクフルト",
+        country:"ドイツ",
+        region:"ヨーロッパ",
+
+        city:{
+            name:"フランクフルト",
+            country:"ドイツ",
+            type:"city",
+            lat:50.1109,
+            lng:8.6821
+        },
+
+        airport:{
+            name:"フランクフルト空港",
+            country:"ドイツ",
+            type:"airport",
+            lat:50.0379,
+            lng:8.5622
+        }
+    },
+
+
+    {
+        name:"ローマ",
+        country:"イタリア",
+        region:"ヨーロッパ",
+
+        city:{
+            name:"ローマ",
+            country:"イタリア",
+            type:"city",
+            lat:41.9028,
+            lng:12.4964
+        },
+
+        airport:{
+            name:"フィウミチーノ空港",
+            country:"イタリア",
+            type:"airport",
+            lat:41.8003,
+            lng:12.2389
+        }
+    }
+
+];
+
+
+const airHubs = [
+    ...portHubs,
+    ...airOnlyHubs
+];
+
+
+/* ======================================================
+   場所説明
+====================================================== */
+
+const placeDescriptions = {
+
+    "札幌":
+        "北海道を代表する都市です。大通公園や札幌時計台などがあり、ラーメンや海産物でも知られています。",
+
+    "仙台":
+        "宮城県の中心都市です。杜の都とも呼ばれ、伊達政宗ゆかりの場所があります。",
+
+    "東京":
+        "日本の首都です。観光・文化・ビジネスの中心地で、多くの有名スポットがあります。",
+
+    "横浜":
+        "神奈川県を代表する港町です。みなとみらいや横浜中華街などがあります。",
+
+    "名古屋":
+        "愛知県の中心都市です。名古屋城や味噌カツ、手羽先などで知られています。",
+
+    "京都":
+        "日本を代表する歴史都市です。寺院や神社、伝統的な街並みが数多く残っています。",
+
+    "大阪":
+        "関西を代表する大都市です。大阪城や道頓堀、たこ焼きなどで知られています。",
+
+    "神戸":
+        "兵庫県を代表する港町です。港の景観や神戸牛などで知られています。",
+
+    "広島":
+        "中国地方を代表する都市です。平和記念公園や広島城などがあります。",
+
+    "高松":
+        "香川県の中心都市です。讃岐うどんや瀬戸内海への玄関口として知られています。",
+
+    "福岡":
+        "九州最大級の都市です。博多ラーメンや屋台文化などで知られています。",
+
+    "長崎":
+        "海外との交流の歴史を持つ港町です。独特の文化や歴史的な街並みがあります。",
+
+    "熊本":
+        "熊本県の中心都市です。熊本城や馬刺しなどで知られています。",
+
+    "鹿児島":
+        "九州南部の都市です。市街地から桜島を見ることができます。",
+
+    "那覇":
+        "沖縄県の中心都市です。国際通りや首里城などがあります。",
+
+
+    "釜山":
+        "韓国南部の大都市です。韓国を代表する港町で、海産物や海辺の景観で知られています。",
+
+    "上海":
+        "中国最大級の都市です。金融や貿易の中心地で、高層ビルが並ぶ都市景観でも知られています。",
+
+    "香港":
+        "高層ビルと港の景観で知られる世界的な都市です。グルメや夜景も有名です。",
+
+    "台北":
+        "台湾を代表する都市です。台北101や夜市などが有名です。",
+
+    "マニラ":
+        "フィリピンの首都です。政治・経済・文化の中心地として発展しています。",
+
+    "シンガポール":
+        "東南アジアにある都市国家です。近代的な街並みと多文化社会で知られています。",
+
+    "ホーチミン":
+        "ベトナム最大級の都市です。商業や観光の中心地として知られています。",
+
+    "バンコク":
+        "タイの首都です。寺院や市場、屋台などで知られています。",
+
+    "ニューデリー":
+        "インドの首都ニューデリーです。歴史的建築や政府機関などがあります。",
+
+    "ドバイ":
+        "UAEを代表する都市です。超高層ビルや大型商業施設で知られています。",
+
+    "シドニー":
+        "オーストラリア最大級の都市です。シドニー・オペラハウスなどで知られています。",
+
+    "メルボルン":
+        "オーストラリア南東部の大都市です。芸術やスポーツ、カフェ文化で知られています。",
+
+    "オークランド":
+        "ニュージーランド最大級の都市です。港と自然に囲まれた都市です。",
+
+    "ホノルル":
+        "アメリカ・ハワイ州の中心都市です。ワイキキビーチなどで知られています。",
+
+    "ロサンゼルス":
+        "アメリカ西海岸の大都市です。映画産業やハリウッドで知られています。",
+
+    "ニューヨーク":
+        "アメリカ最大級の都市です。タイムズスクエアや自由の女神などがあります。",
+
+    "バンクーバー":
+        "カナダ西海岸の都市です。海と山に囲まれた自然豊かな街です。",
+
+    "ロンドン":
+        "イギリスの首都です。ビッグ・ベンやバッキンガム宮殿などがあります。",
+
+    "パリ":
+        "フランスの首都です。エッフェル塔やルーヴル美術館などがあります。",
+
+    "フランクフルト":
+        "ドイツを代表する金融都市の一つです。国際空港もヨーロッパ有数の規模を持っています。",
+
+    "ローマ":
+        "イタリアの首都です。コロッセオなど古代ローマ時代の遺跡が数多く残っています。"
+
+};
+
+
+/* ======================================================
+   移動手段
+====================================================== */
+
+const modeInfo = {
+
+    car:{
+        emoji:"🚗",
+        name:"車",
+        color:"#ff9f43"
+    },
+
+    train:{
+        emoji:"🚆",
+        name:"電車",
+        color:"#4dabf7"
+    },
+
+    ship:{
+        emoji:"🚢",
+        name:"船",
+        color:"#22b8cf"
+    },
+
+    plane:{
+        emoji:"✈️",
+        name:"飛行機",
+        color:"#ff6b6b"
+    }
+
+};
+
+
+/* ======================================================
+   料金
+====================================================== */
+
+function round100(value) {
+
+    return Math.round(
+        value / 100
+    ) * 100;
+
+}
+
+
+function estimateCost(
+    mode,
+    km
+) {
+
+    let cost = 0;
+
+
+    if (
+        mode ===
+        "car"
+    ) {
+
+        cost =
+            Math.max(
+                300,
+                km * 25
+            );
+
+    }
+
+    else if (
+        mode ===
+        "train"
+    ) {
+
+        cost =
+            Math.max(
+                200,
+                km * 20
+            );
+
+    }
+
+    else if (
+        mode ===
+        "ship"
+    ) {
+
+        cost =
+            Math.max(
+                1500,
+                km * 15
+            );
+
+    }
+
+    else {
+
+        cost =
+            Math.max(
+                5000,
+                5000 +
+                km * 12
+            );
+
+    }
+
+
+    return round100(
+        cost
+    );
+
+}
+
+
+/* ======================================================
+   RANDOM
+====================================================== */
+
+function random(array) {
+
+    return array[
+        Math.floor(
+            Math.random() *
+            array.length
+        )
+    ];
+
+}
+
+
+function randomInt(
+    min,
+    max
+) {
+
+    return Math.floor(
+        Math.random() *
+        (
+            max -
+            min +
+            1
+        )
+    ) + min;
+
+}
+
+
+function shuffle(array) {
+
+    return [...array]
+        .sort(
+            () =>
+                Math.random() -
+                .5
+        );
+
+}
+
+
+function landMode() {
+
+    return Math.random() < .5
+        ? "car"
+        : "train";
+
+}
+
+
+function sleep(ms) {
+
+    return new Promise(
+        resolve =>
+            setTimeout(
+                resolve,
+                ms
+            )
+    );
+
+}
+
+
+/* ======================================================
+   国重複防止
+====================================================== */
+
+function differentCountries(
+    hubs,
+    count,
+    excluded = []
+) {
+
+    const used =
+        new Set(excluded);
+
+
+    const result =
+        [];
+
+
+    for (
+        const hub
+        of shuffle(hubs)
+    ) {
+
+        if (
+            used.has(
+                hub.country
+            )
+        ) {
+
+            continue;
+
+        }
+
+
+        result.push(
+            hub
+        );
+
+
+        used.add(
+            hub.country
+        );
+
+
+        if (
+            result.length >=
+            count
+        ) {
+
+            break;
+
+        }
+
+    }
+
+
+    return result;
+
+}
+
+
+/* ======================================================
+   地名検索
+====================================================== */
+
+async function geocode(place) {
+
+    const url =
+
+        "https://nominatim.openstreetmap.org/search" +
+
+        "?format=json" +
+
+        "&limit=1" +
+
+        "&accept-language=ja" +
+
+        "&q=" +
+
+        encodeURIComponent(place);
+
+
+    const response =
+        await fetch(url);
+
+
+    if (!response.ok) {
+
+        throw new Error(
+            "場所検索に失敗しました"
+        );
+
+    }
+
+
+    const data =
+        await response.json();
+
+
+    if (
+        data.length === 0
+    ) {
+
+        throw new Error(
+
+            "「" +
+
+            place +
+
+            "」が見つかりません"
+
+        );
+
+    }
+
+
+    return {
+
+        name:
+            data[0]
+            .display_name
+            .split(",")
+            .slice(0,2)
+            .join(" "),
+
+        country:
+            "入力地点",
+
+        type:
+            "city",
+
+        lat:
+            Number(
+                data[0].lat
+            ),
+
+        lng:
+            Number(
+                data[0].lon
+            )
+
+    };
+
+}
+
+
+/* ======================================================
+   距離
+====================================================== */
+
+function distance(
+    a,
+    b
+) {
+
+    const R =
+        6371;
+
+
+    const lat1 =
+        a.lat *
+        Math.PI /
+        180;
+
+
+    const lat2 =
+        b.lat *
+        Math.PI /
+        180;
+
+
+    const dLat =
+        (
+            b.lat -
+            a.lat
+        ) *
+        Math.PI /
+        180;
+
+
+    const dLng =
+        (
+            b.lng -
+            a.lng
+        ) *
+        Math.PI /
+        180;
+
+
+    const x =
+
+        Math.sin(
+            dLat / 2
+        ) ** 2 +
+
+        Math.cos(lat1) *
+
+        Math.cos(lat2) *
+
+        Math.sin(
+            dLng / 2
+        ) ** 2;
+
+
+    return (
+
+        R *
+
+        2 *
+
+        Math.atan2(
+            Math.sqrt(x),
+            Math.sqrt(1 - x)
+        )
+
+    );
+
+}
+
+
+/* ======================================================
+   ルート
+====================================================== */
+
+function newRoute(start) {
+
+    return {
+
+        points:[
+            start
+        ],
+
+        travelModes:[]
+
+    };
+
+}
+
+
+function addLeg(
+    route,
+    mode,
+    destination
+) {
+
+    route.travelModes.push(
+        mode
+    );
+
+
+    route.points.push(
+        destination
+    );
+
+}
+
+
+/* ======================================================
+   国内
+====================================================== */
+
+function buildDomestic(
+    start,
+    goal
+) {
+
+    const route =
+        newRoute(start);
+
+
+    const cities =
+
+        shuffle(
+            japanCities
+        )
+
+        .slice(
+            0,
+            randomInt(
+                4,
+                7
+            )
+        );
+
+
+    cities.forEach(
+        city => {
+
+            addLeg(
+                route,
+                landMode(),
+                city
+            );
+
+        }
+    );
+
+
+    addLeg(
+        route,
+        landMode(),
+        goal
+    );
+
+
+    return {
+
+        name:
+            "🇯🇵 国内大迷走",
+
+        chaos:
+            randomInt(
+                2,
+                4
+            ),
+
+        ...route
+
+    };
+
+}
+
+
+/* ======================================================
+   船＋飛行機
+====================================================== */
+
+function buildSeaAir(
+    start,
+    goal
+) {
+
+    const route =
+        newRoute(start);
+
+
+    const japan =
+        random(
+            japanGateways
+        );
+
+
+    const sea =
+        random(
+            portHubs
+        );
+
+
+    const air =
+
+        random(
+
+            airHubs.filter(
+
+                hub =>
+                    hub.country !==
+                    sea.country
+
+            )
+
+        );
+
+
+    const back =
+        random(
+            japanGateways
+        );
+
+
+    addLeg(
+        route,
+        landMode(),
+        japan.city
+    );
+
+
+    addLeg(
+        route,
+        landMode(),
+        japan.port
+    );
+
+
+    addLeg(
+        route,
+        "ship",
+        sea.port
+    );
+
+
+    addLeg(
+        route,
+        landMode(),
+        sea.city
+    );
+
+
+    addLeg(
+        route,
+        landMode(),
+        sea.airport
+    );
+
+
+    addLeg(
+        route,
+        "plane",
+        air.airport
+    );
+
+
+    addLeg(
+        route,
+        landMode(),
+        air.city
+    );
+
+
+    addLeg(
+        route,
+        landMode(),
+        air.airport
+    );
+
+
+    addLeg(
+        route,
+        "plane",
+        back.airport
+    );
+
+
+    addLeg(
+        route,
+        landMode(),
+        goal
+    );
+
+
+    return {
+
+        name:
+            "🚢→✈️ 港から海外",
+
+        chaos:4,
+
+        ...route
+
+    };
+
+}
+
+
+/* ======================================================
+   飛行機ホッピング
+====================================================== */
+
+function buildPlane(
+    start,
+    goal
+) {
+
+    const route =
+        newRoute(start);
+
+
+    const departure =
+        random(
+            japanGateways
+        );
+
+
+    const back =
+        random(
+            japanGateways
+        );
+
+
+    addLeg(
+        route,
+        landMode(),
+        departure.airport
+    );
+
+
+    const hubs =
+
+        differentCountries(
+
+            airHubs,
+
+            randomInt(
+                3,
+                5
+            )
+
+        );
+
+
+    hubs.forEach(
+        hub => {
+
+            addLeg(
+                route,
+                "plane",
+                hub.airport
+            );
+
+
+            if (
+                Math.random() <
+                .55
+            ) {
+
+                addLeg(
+                    route,
+                    landMode(),
+                    hub.city
+                );
+
+
+                addLeg(
+                    route,
+                    landMode(),
+                    hub.airport
+                );
+
+            }
+
+        }
+    );
+
+
+    addLeg(
+        route,
+        "plane",
+        back.airport
+    );
+
+
+    addLeg(
+        route,
+        landMode(),
+        goal
+    );
+
+
+    return {
+
+        name:
+            "✈️ 空港ホッピング",
+
+        chaos:
+            randomInt(
+                3,
+                5
+            ),
+
+        ...route
+
+    };
+
+}
+
+
+/* ======================================================
+   海外ぶらぶら
+====================================================== */
+
+function buildInternational(
+    start,
+    goal
+) {
+
+    const route =
+        newRoute(start);
+
+
+    const departure =
+        random(
+            japanGateways
+        );
+
+
+    const back =
+        random(
+            japanGateways
+        );
+
+
+    addLeg(
+        route,
+        landMode(),
+        departure.city
+    );
+
+
+    addLeg(
+        route,
+        landMode(),
+        departure.airport
+    );
+
+
+    const hubs =
+
+        differentCountries(
+
+            airHubs,
+
+            randomInt(
+                2,
+                3
+            )
+
+        );
+
+
+    hubs.forEach(
+        hub => {
+
+            addLeg(
+                route,
+                "plane",
+                hub.airport
+            );
+
+
+            addLeg(
+                route,
+                landMode(),
+                hub.city
+            );
+
+
+            addLeg(
+                route,
+                landMode(),
+                hub.airport
+            );
+
+        }
+    );
+
+
+    addLeg(
+        route,
+        "plane",
+        back.airport
+    );
+
+
+    addLeg(
+        route,
+        landMode(),
+        back.city
+    );
+
+
+    addLeg(
+        route,
+        landMode(),
+        goal
+    );
+
+
+    return {
+
+        name:
+            "🌏 海外ぶらぶら旅行",
+
+        chaos:4,
+
+        ...route
+
+    };
+
+}
+
+
+/* ======================================================
+   帰国したのにまた海外
+====================================================== */
+
+function buildBounce(
+    start,
+    goal
+) {
+
+    const route =
+        newRoute(start);
+
+
+    const foreign =
+        differentCountries(
+            airHubs,
+            2
+        );
+
+
+    const foreign1 =
+        foreign[0];
+
+
+    const foreign2 =
+        foreign[1];
+
+
+    const jp1 =
+        random(
+            japanGateways
+        );
+
+
+    const jp2 =
+        random(
+            japanGateways
+        );
+
+
+    const jp3 =
+        random(
+            japanGateways
+        );
+
+
+    addLeg(
+        route,
+        landMode(),
+        jp1.airport
+    );
+
+
+    addLeg(
+        route,
+        "plane",
+        foreign1.airport
+    );
+
+
+    addLeg(
+        route,
+        landMode(),
+        foreign1.city
+    );
+
+
+    addLeg(
+        route,
+        landMode(),
+        foreign1.airport
+    );
+
+
+    addLeg(
+        route,
+        "plane",
+        jp2.airport
+    );
+
+
+    addLeg(
+        route,
+        landMode(),
+        jp2.city
+    );
+
+
+    addLeg(
+        route,
+        landMode(),
+        jp3.airport
+    );
+
+
+    addLeg(
+        route,
+        "plane",
+        foreign2.airport
+    );
+
+
+    addLeg(
+        route,
+        landMode(),
+        foreign2.city
+    );
+
+
+    addLeg(
+        route,
+        landMode(),
+        foreign2.airport
+    );
+
+
+    addLeg(
+        route,
+        "plane",
+        jp1.airport
+    );
+
+
+    addLeg(
+        route,
+        landMode(),
+        goal
+    );
+
+
+    return {
+
+        name:
+            "🔁 帰国したのにまた海外",
+
+        chaos:5,
+
+        ...route
+
+    };
+
+}
+
+
+/* ======================================================
+   世界一周
+====================================================== */
+
+function hubFromRegion(region) {
+
+    return random(
+
+        airHubs.filter(
+
+            hub =>
+                hub.region ===
+                region
+
+        )
+
+    );
+
+}
+
+
+function buildWorld(
+    start,
+    goal
+) {
+
+    const route =
+        newRoute(start);
+
+
+    const departure =
+        random(
+            japanGateways
+        );
+
+
+    const back =
+        random(
+            japanGateways
+        );
+
+
+    addLeg(
+        route,
+        landMode(),
+        departure.airport
+    );
+
+
+    let regions;
+
+
+    if (
+        Math.random() <
+        .5
+    ) {
+
+        regions = [
+
+            "オセアニア",
+
+            "北米",
+
+            "ヨーロッパ",
+
+            "中東",
+
+            "アジア"
+
+        ];
+
+    }
+
+    else {
+
+        regions = [
+
+            "アジア",
+
+            "中東",
+
+            "ヨーロッパ",
+
+            "北米",
+
+            "オセアニア"
+
+        ];
+
+    }
+
+
+    regions.forEach(
+        region => {
+
+            const hub =
+                hubFromRegion(
+                    region
+                );
+
+
+            addLeg(
+                route,
+                "plane",
+                hub.airport
+            );
+
+
+            if (
+                Math.random() <
+                .35
+            ) {
+
+                addLeg(
+                    route,
+                    landMode(),
+                    hub.city
+                );
+
+
+                addLeg(
+                    route,
+                    landMode(),
+                    hub.airport
+                );
+
+            }
+
+        }
+    );
+
+
+    addLeg(
+        route,
+        "plane",
+        back.airport
+    );
+
+
+    addLeg(
+        route,
+        landMode(),
+        goal
+    );
+
+
+    return {
+
+        name:
+            "🌍 激レア世界一周",
+
+        chaos:5,
+
+        ...route
+
+    };
+
+}
+
+
+/* ======================================================
+   完全カオス
+====================================================== */
+
+function buildChaos(
+    start,
+    goal
+) {
+
+    const route =
+        newRoute(start);
+
+
+    const departure =
+        random(
+            japanGateways
+        );
+
+
+    addLeg(
+        route,
+        landMode(),
+        departure.city
+    );
+
+
+    if (
+        Math.random() <
+        .5
+    ) {
+
+        const sea =
+            random(
+                portHubs
+            );
+
+
+        addLeg(
+            route,
+            landMode(),
+            departure.port
+        );
+
+
+        addLeg(
+            route,
+            "ship",
+            sea.port
+        );
+
+
+        addLeg(
+            route,
+            landMode(),
+            sea.city
+        );
+
+
+        addLeg(
+            route,
+            landMode(),
+            sea.airport
+        );
+
+    }
+
+    else {
+
+        addLeg(
+            route,
+            landMode(),
+            departure.airport
+        );
+
+    }
+
+
+    const airStops =
+
+        differentCountries(
+
+            airHubs,
+
+            randomInt(
+                2,
+                4
+            )
+
+        );
+
+
+    airStops.forEach(
+        hub => {
+
+            addLeg(
+                route,
+                "plane",
+                hub.airport
+            );
+
+
+            if (
+                Math.random() <
+                .6
+            ) {
+
+                addLeg(
+                    route,
+                    landMode(),
+                    hub.city
+                );
+
+
+                addLeg(
+                    route,
+                    landMode(),
+                    hub.airport
+                );
+
+            }
+
+        }
+    );
+
+
+    if (
+        Math.random() <
+        .45
+    ) {
+
+        const seaPair =
+            differentCountries(
+                portHubs,
+                2
+            );
+
+
+        const sea1 =
+            seaPair[0];
+
+
+        const sea2 =
+            seaPair[1];
+
+
+        addLeg(
+            route,
+            "plane",
+            sea1.airport
+        );
+
+
+        addLeg(
+            route,
+            landMode(),
+            sea1.city
+        );
+
+
+        addLeg(
+            route,
+            landMode(),
+            sea1.port
+        );
+
+
+        addLeg(
+            route,
+            "ship",
+            sea2.port
+        );
+
+
+        addLeg(
+            route,
+            landMode(),
+            sea2.city
+        );
+
+
+        addLeg(
+            route,
+            landMode(),
+            sea2.airport
+        );
+
+    }
+
+
+    const back =
+        random(
+            japanGateways
+        );
+
+
+    addLeg(
+        route,
+        "plane",
+        back.airport
+    );
+
+
+    addLeg(
+        route,
+        landMode(),
+        random(
+            japanCities
+        )
+    );
+
+
+    addLeg(
+        route,
+        landMode(),
+        goal
+    );
+
+
+    return {
+
+        name:
+            "💀 完全カオス",
+
+        chaos:5,
+
+        ...route
+
+    };
+
+}
+
+
+/* ======================================================
+   パターン抽選
+====================================================== */
+
+function selectPattern() {
+
+    const n =
+        Math.random() *
+        100;
+
+
+    if (n < 5) {
+        return "world";
+    }
+
+    if (n < 18) {
+        return "sea";
+    }
+
+    if (n < 33) {
+        return "plane";
+    }
+
+    if (n < 50) {
+        return "domestic";
+    }
+
+    if (n < 67) {
+        return "bounce";
+    }
+
+    if (n < 87) {
+        return "international";
+    }
+
+    return "chaos";
+
+}
+
+
+function generateRoute(
+    start,
+    goal
+) {
+
+    const pattern =
+        selectPattern();
+
+
+    switch(pattern) {
+
+        case "world":
+
+            return buildWorld(
+                start,
+                goal
+            );
+
+
+        case "sea":
+
+            return buildSeaAir(
+                start,
+                goal
+            );
+
+
+        case "plane":
+
+            return buildPlane(
+                start,
+                goal
+            );
+
+
+        case "domestic":
+
+            return buildDomestic(
+                start,
+                goal
+            );
+
+
+        case "bounce":
+
+            return buildBounce(
+                start,
+                goal
+            );
+
+
+        case "chaos":
+
+            return buildChaos(
+                start,
+                goal
+            );
+
+
+        default:
+
+            return buildInternational(
+                start,
+                goal
+            );
+
+    }
+
+}
+
+
+/* ======================================================
+   場所情報
+====================================================== */
+
+function getPlaceTypeName(type) {
+
+    if (
+        type ===
+        "airport"
+    ) {
+
+        return "✈️ 空港";
+
+    }
+
+
+    if (
+        type ===
+        "port"
+    ) {
+
+        return "⚓ 港";
+
+    }
+
+
+    return "🏙 都市";
+
+}
+
+
+function findDescription(
+    point
+) {
+
+    if (
+        placeDescriptions[
+            point.name
+        ]
+    ) {
+
+        return placeDescriptions[
+            point.name
+        ];
+
+    }
+
+
+    for (
+        const name
+        in placeDescriptions
+    ) {
+
+        if (
+            point.name.includes(
+                name
+            )
+        ) {
+
+            return placeDescriptions[
+                name
+            ];
+
+        }
+
+    }
+
+
+    /*
+       空港・港から対応都市を探す
+    */
+
+    const allHubs = [
+
+        ...japanGateways,
+
+        ...airHubs
+
+    ];
+
+
+    for (
+        const hub
+        of allHubs
+    ) {
+
+        if (
+            hub.airport &&
+            hub.airport.name ===
+            point.name
+        ) {
+
+            if (
+                placeDescriptions[
+                    hub.name
+                ]
+            ) {
+
+                return (
+
+                    placeDescriptions[
+                        hub.name
+                    ] +
+
+                    " この空港はその地域の主要な空の玄関口です。"
+
+                );
+
+            }
+
+        }
+
+
+        if (
+            hub.port &&
+            hub.port.name ===
+            point.name
+        ) {
+
+            if (
+                placeDescriptions[
+                    hub.name
+                ]
+            ) {
+
+                return (
+
+                    placeDescriptions[
+                        hub.name
+                    ] +
+
+                    " この港は周辺地域の海上交通の拠点です。"
+
+                );
+
+            }
+
+        }
+
+    }
+
+
+    if (
+        point.type ===
+        "airport"
+    ) {
+
+        return (
+            point.name +
+            "は今回の超遠回りルートで利用する空港です。"
+        );
+
+    }
+
+
+    if (
+        point.type ===
+        "port"
+    ) {
+
+        return (
+            point.name +
+            "は今回の超遠回りルートで利用する港です。"
+        );
+
+    }
+
+
+    return (
+        point.name +
+        "は今回の超遠回りルートで訪れる地点です。"
+    );
+
+}
+
+
+function showPlaceInfo(point) {
+
+    document
+    .getElementById(
+        "placeInfoName"
+    )
+    .innerText =
+        point.name;
+
+
+    document
+    .getElementById(
+        "placeInfoCountry"
+    )
+    .innerText =
+
+        point.country ===
+        "入力地点"
+
+        ?
+
+        "📍 入力した地点"
+
+        :
+
+        "🌏 " +
+        point.country;
+
+
+    let emoji =
+        "🏙";
+
+
+    if (
+        point.type ===
+        "airport"
+    ) {
+
+        emoji =
+            "✈️";
+
+    }
+
+
+    if (
+        point.type ===
+        "port"
+    ) {
+
+        emoji =
+            "⚓";
+
+    }
+
+
+    document
+    .getElementById(
+        "placeInfoEmoji"
+    )
+    .innerText =
+        emoji;
+
+
+    document
+    .getElementById(
+        "placeInfoType"
+    )
+    .innerText =
+
+        "種類：" +
+
+        getPlaceTypeName(
+            point.type
+        );
+
+
+    document
+    .getElementById(
+        "placeInfoPosition"
+    )
+    .innerText =
+
+        "緯度・経度：" +
+
+        point.lat
+        .toFixed(4) +
+
+        ", " +
+
+        point.lng
+        .toFixed(4);
+
+
+    document
+    .getElementById(
+        "placeInfoDescription"
+    )
+    .innerText =
+
+        findDescription(
+            point
+        );
+
+
+    document
+    .getElementById(
+        "placeGoogleLink"
+    )
+    .href =
+
+        "https://www.google.com/maps/search/?api=1&query=" +
+
+        encodeURIComponent(
+
+            point.lat +
+            "," +
+            point.lng
+
+        );
+
+
+    document
+    .getElementById(
+        "placeWikiLink"
+    )
+    .href =
+
+        "https://ja.wikipedia.org/wiki/Special:Search?search=" +
+
+        encodeURIComponent(
+            point.name
+        );
+
+
+    document
+    .getElementById(
+        "placeModal"
+    )
+    .style.display =
+        "flex";
+
+}
+
+
+function closePlaceInfo(event) {
+
+    if (
+        event &&
+        event.target.id !==
+        "placeModal"
+    ) {
+
+        return;
+
+    }
+
+
+    document
+    .getElementById(
+        "placeModal"
+    )
+    .style.display =
+        "none";
+
+}
+
+
+/* ESCでも閉じる */
+
+document.addEventListener(
+    "keydown",
+    event => {
+
+        if (
+            event.key ===
+            "Escape"
+        ) {
+
+            closePlaceInfo();
+
+        }
+
+    }
+);
+
+
+/* ======================================================
+   マーカー
+====================================================== */
+
+function markerEmoji(
+    point,
+    index,
+    last
+) {
+
+    if (
+        index === 0
+    ) {
+
+        return "📍";
+
+    }
+
+
+    if (
+        index === last
+    ) {
+
+        return "🏁";
+
+    }
+
+
+    if (
+        point.type ===
+        "airport"
+    ) {
+
+        return "✈️";
+
+    }
+
+
+    if (
+        point.type ===
+        "port"
+    ) {
+
+        return "⚓";
+
+    }
+
+
+    return "📌";
+
+}
+
+
+function addMarker(
+    point,
+    index,
+    last
+) {
+
+    const emoji =
+        markerEmoji(
+            point,
+            index,
+            last
+        );
+
+
+    let step =
+        index;
+
+
+    if (
+        index ===
+        0
+    ) {
+
+        step =
+            "S";
+
+    }
+
+
+    if (
+        index ===
+        last
+    ) {
+
+        step =
+            "G";
+
+    }
+
+
+    const icon =
+        L.divIcon({
+
+            className:"",
+
+            html:
+
+                '<div class="place-marker">' +
+
+                emoji +
+
+                '<div class="step-number">' +
+
+                step +
+
+                "</div>" +
+
+                "</div>",
+
+            iconSize:[
+                48,
+                48
+            ],
+
+            iconAnchor:[
+                24,
+                24
+            ]
+
+        });
+
+
+    const marker =
+        L.marker(
+
+            [
+                point.lat,
+                point.lng
+            ],
+
+            {
+                icon:icon,
+
+                pane:
+                    "placeMarkers"
+            }
+
+        )
+        .addTo(
+            routeLayer
+        );
+
+
+    marker.bindTooltip(
+
+        step +
+        "：" +
+        point.name,
+
+        {
+            direction:"top",
+
+            offset:[
+                0,
+                -25
+            ]
+        }
+
+    );
+
+
+    marker.on(
+        "click",
+        function() {
+
+            showPlaceInfo(
+                point
+            );
+
+        }
+    );
+
+}
+
+
+/* ======================================================
+   Google Maps
+====================================================== */
+
+function googleMapsURL(
+    a,
+    b,
+    mode
+) {
+
+    let travelMode = "transit";
+
+    if (mode === "car") {
+        travelMode = "driving";
+    }
+
+
+    return (
+
+        "https://www.google.com/maps/dir/" +
+
+        "?api=1" +
+
+        "&origin=" +
+
+        a.lat +
+
+        "," +
+
+        a.lng +
+
+        "&destination=" +
+
+        b.lat +
+
+        "," +
+
+        b.lng +
+
+        "&travelmode=" +
+
+        travelMode
+
+    );
+
+}
+
+
+/* ======================================================
+   道路ルート
+====================================================== */
+
+async function getRoadRoute(
+    a,
+    b
+) {
+
+    const url =
+
+        "https://router.project-osrm.org/route/v1/driving/" +
+
+        a.lng +
+
+        "," +
+
+        a.lat +
+
+        ";" +
+
+        b.lng +
+
+        "," +
+
+        b.lat +
+
+        "?overview=full&geometries=geojson";
+
+
+    const response =
+        await fetch(url);
+
+
+    if (
+        !response.ok
+    ) {
+
+        throw new Error();
+
+    }
+
+
+    const data =
+        await response.json();
+
+
+    if (
+        !data.routes ||
+        data.routes.length ===
+        0
+    ) {
+
+        throw new Error();
+
+    }
+
+
+    return (
+
+        data.routes[0]
+        .geometry
+        .coordinates
+        .map(
+
+            coordinate => [
+
+                coordinate[1],
+
+                coordinate[0]
+
+            ]
+
+        )
+
+    );
+
+}
+
+
+/* ======================================================
+   カーブ
+====================================================== */
+
+function curvePoints(
+    a,
+    b,
+    curve = .1,
+    steps = 35
+) {
+
+    let endLng =
+        b.lng;
+
+
+    while (
+        endLng -
+        a.lng >
+        180
+    ) {
+
+        endLng -=
+            360;
+
+    }
+
+
+    while (
+        endLng -
+        a.lng <
+        -180
+    ) {
+
+        endLng +=
+            360;
+
+    }
+
+
+    const dx =
+        endLng -
+        a.lng;
+
+
+    const dy =
+        b.lat -
+        a.lat;
+
+
+    const middleLng =
+        (
+            a.lng +
+            endLng
+        ) /
+        2;
+
+
+    const middleLat =
+        (
+            a.lat +
+            b.lat
+        ) /
+        2;
+
+
+    const controlLng =
+        middleLng -
+        dy *
+        curve;
+
+
+    const controlLat =
+        middleLat +
+        dx *
+        curve *
+        .25;
+
+
+    const points =
+        [];
+
+
+    for (
+        let i = 0;
+        i <= steps;
+        i++
+    ) {
+
+        const t =
+            i /
+            steps;
+
+
+        const one =
+            1 -
+            t;
+
+
+        const lat =
+
+            one *
+            one *
+            a.lat +
+
+            2 *
+            one *
+            t *
+            controlLat +
+
+            t *
+            t *
+            b.lat;
+
+
+        let lng =
+
+            one *
+            one *
+            a.lng +
+
+            2 *
+            one *
+            t *
+            controlLng +
+
+            t *
+            t *
+            endLng;
+
+
+        while (
+            lng >
+            180
+        ) {
+
+            lng -=
+                360;
+
+        }
+
+
+        while (
+            lng <
+            -180
+        ) {
+
+            lng +=
+                360;
+
+        }
+
+
+        points.push(
+            [
+                lat,
+                lng
+            ]
+        );
+
+    }
+
+
+    return points;
+
+}
+
+
+/* ======================================================
+   飛行機
+====================================================== */
+
+function greatCirclePoints(
+    a,
+    b,
+    steps = 70
+) {
+
+    const lat1 =
+        a.lat *
+        Math.PI /
+        180;
+
+
+    const lon1 =
+        a.lng *
+        Math.PI /
+        180;
+
+
+    const lat2 =
+        b.lat *
+        Math.PI /
+        180;
+
+
+    const lon2 =
+        b.lng *
+        Math.PI /
+        180;
+
+
+    const delta =
+
+        Math.acos(
+
+            Math.min(
+
+                1,
+
+                Math.max(
+
+                    -1,
+
+                    Math.sin(lat1) *
+                    Math.sin(lat2) +
+
+                    Math.cos(lat1) *
+                    Math.cos(lat2) *
+
+                    Math.cos(
+                        lon2 -
+                        lon1
+                    )
+
+                )
+
+            )
+
+        );
+
+
+    if (
+        delta ===
+        0
+    ) {
+
+        return [
+
+            [
+                a.lat,
+                a.lng
+            ],
+
+            [
+                b.lat,
+                b.lng
+            ]
+
+        ];
+
+    }
+
+
+    const result =
+        [];
+
+
+    for (
+        let i = 0;
+        i <= steps;
+        i++
+    ) {
+
+        const t =
+            i /
+            steps;
+
+
+        const A =
+
+            Math.sin(
+
+                (
+                    1 -
+                    t
+                ) *
+                delta
+
+            ) /
+
+            Math.sin(delta);
+
+
+        const B =
+
+            Math.sin(
+                t *
+                delta
+            ) /
+
+            Math.sin(delta);
+
+
+        const x =
+
+            A *
+            Math.cos(lat1) *
+            Math.cos(lon1) +
+
+            B *
+            Math.cos(lat2) *
+            Math.cos(lon2);
+
+
+        const y =
+
+            A *
+            Math.cos(lat1) *
+            Math.sin(lon1) +
+
+            B *
+            Math.cos(lat2) *
+            Math.sin(lon2);
+
+
+        const z =
+
+            A *
+            Math.sin(lat1) +
+
+            B *
+            Math.sin(lat2);
+
+
+        const lat =
+
+            Math.atan2(
+
+                z,
+
+                Math.sqrt(
+                    x*x +
+                    y*y
+                )
+
+            );
+
+
+        const lon =
+            Math.atan2(
+                y,
+                x
+            );
+
+
+        result.push(
+
+            [
+
+                lat *
+                180 /
+                Math.PI,
+
+                lon *
+                180 /
+                Math.PI
+
+            ]
+
+        );
+
+    }
+
+
+    return result;
+
+}
+
+
+/* ======================================================
+   日付変更線
+====================================================== */
+
+function splitDateLine(
+    points
+) {
+
+    const segments = [
+        []
+    ];
+
+
+    let oldLng =
+        null;
+
+
+    points.forEach(
+        point => {
+
+            let lng =
+                point[1];
+
+
+            while (
+                lng >
+                180
+            ) {
+
+                lng -= 360;
+
+            }
+
+
+            while (
+                lng <
+                -180
+            ) {
+
+                lng += 360;
+
+            }
+
+
+            if (
+
+                oldLng !==
+                null &&
+
+                Math.abs(
+                    lng -
+                    oldLng
+                ) >
+                180
+
+            ) {
+
+                segments.push(
+                    []
+                );
+
+            }
+
+
+            segments[
+                segments.length -
+                1
+            ]
+            .push(
+
+                [
+                    point[0],
+                    lng
+                ]
+
+            );
+
+
+            oldLng =
+                lng;
+
+        }
+    );
+
+
+    return segments.filter(
+
+        segment =>
+            segment.length >=
+            2
+
+    );
+
+}
+
+
+/* ======================================================
+   見やすい線
+====================================================== */
+
+function drawReadableLine(
+    points,
+    options
+) {
+
+    L.polyline(
+
+        points,
+
+        {
+            pane:
+                "routeShadow",
+
+            color:
+                "#ffffff",
+
+            weight:
+                options.weight +
+                5,
+
+            opacity:
+                .88,
+
+            lineCap:
+                "round",
+
+            lineJoin:
+                "round"
+        }
+
+    )
+    .addTo(
+        routeLayer
+    );
+
+
+    L.polyline(
+
+        points,
+
+        {
+            pane:
+                "routeMain",
+
+            color:
+                options.color,
+
+            weight:
+                options.weight,
+
+            opacity:1,
+
+            dashArray:
+                options.dashArray ||
+                null,
+
+            lineCap:
+                "round",
+
+            lineJoin:
+                "round"
+        }
+
+    )
+    .addTo(
+        routeLayer
+    );
+
+}
+
+
+/* ======================================================
+   交通アイコン
+====================================================== */
+
+function addTransportIcon(
+    path,
+    mode
+) {
+
+    if (
+        !path ||
+        path.length ===
+        0
+    ) {
+
+        return;
+
+    }
+
+
+    const point =
+
+        path[
+            Math.floor(
+                path.length /
+                2
+            )
+        ];
+
+
+    const icon =
+        L.divIcon({
+
+            className:"",
+
+            html:
+
+                '<div class="transport-icon">' +
+
+                modeInfo[
+                    mode
+                ].emoji +
+
+                "</div>",
+
+            iconSize:[
+                42,
+                42
+            ],
+
+            iconAnchor:[
+                21,
+                21
+            ]
+
+        });
+
+
+    L.marker(
+
+        point,
+
+        {
+            icon:icon,
+
+            interactive:false,
+
+            pane:
+                "transportIcons"
+        }
+
+    )
+    .addTo(
+        routeLayer
+    );
+
+}
+
+
+/* ======================================================
+   区間描画
+====================================================== */
+
+async function drawLeg(
+    a,
+    b,
+    mode
+) {
+
+    const info =
+        modeInfo[
+            mode
+        ];
+
+
+    let path;
+
+
+    if (
+        mode ===
+        "car"
+    ) {
+
+        try {
+
+            if (
+                distance(
+                    a,
+                    b
+                ) >
+                1200
+            ) {
+
+                throw new Error();
+
+            }
+
+
+            path =
+                await getRoadRoute(
+                    a,
+                    b
+                );
+
+
+            drawReadableLine(
+
+                path,
+
+                {
+                    color:
+                        info.color,
+
+                    weight:7
+                }
+
+            );
+
+        }
+
+        catch {
+
+            path =
+                curvePoints(
+                    a,
+                    b,
+                    .04
+                );
+
+
+            drawReadableLine(
+
+                path,
+
+                {
+                    color:
+                        info.color,
+
+                    weight:6
+                }
+
+            );
+
+        }
+
+    }
+
+    else if (
+        mode ===
+        "train"
+    ) {
+
+        path =
+            curvePoints(
+                a,
+                b,
+                .03
+            );
+
+
+        drawReadableLine(
+
+            path,
+
+            {
+                color:
+                    info.color,
+
+                weight:6,
+
+                dashArray:
+                    "14 7"
+            }
+
+        );
+
+    }
+
+
+    else if (
+        mode ===
+        "ship"
+    ) {
+
+        path =
+            curvePoints(
+                a,
+                b,
+                .14,
+                50
+            );
+
+
+        const segments =
+            splitDateLine(
+                path
+            );
+
+
+        segments.forEach(
+            segment => {
+
+                drawReadableLine(
+
+                    segment,
+
+                    {
+                        color:
+                            info.color,
+
+                        weight:6,
+
+                        dashArray:
+                            "8 11"
+                    }
+
+                );
+
+            }
+        );
+
+    }
+
+
+    else {
+
+        path =
+            greatCirclePoints(
+                a,
+                b
+            );
+
+
+        const segments =
+            splitDateLine(
+                path
+            );
+
+
+        segments.forEach(
+            segment => {
+
+                drawReadableLine(
+
+                    segment,
+
+                    {
+                        color:
+                            info.color,
+
+                        weight:5,
+
+                        dashArray:
+                            "14 10"
+                    }
+
+                );
+
+            }
+        );
+
+    }
+
+
+    addTransportIcon(
+        path,
+        mode
+    );
+
+}
+
+
+/* ======================================================
+   タイムライン
+====================================================== */
+
+async function createTimeline(
+    route,
+    status
+) {
+
+    const points =
+        route.points;
+
+
+    const travelModes =
+        route.travelModes;
+
+
+    const routeList =
+        document
+        .getElementById(
+            "routeList"
+        );
+
+
+    routeList.innerHTML =
+        "";
+
+
+    let totalKm =
+        0;
+
+
+    let totalCost =
+        0;
+
+
+    for (
+        let i = 0;
+        i < points.length;
+        i++
+    ) {
+
+        const point =
+            points[i];
+
+
+        const step =
+            document
+            .createElement(
+                "div"
+            );
+
+
+        step.className =
+            "route-step";
+
+
+        let number;
+
+
+        if (
+            i ===
+            0
+        ) {
+
+            number =
+                "S";
+
+        }
+
+        else if (
+            i ===
+            points.length -
+            1
+        ) {
+
+            number =
+                "G";
+
+        }
+
+        else {
+
+            number =
+                i;
+
+        }
+
+
+        const emoji =
+            markerEmoji(
+
+                point,
+
+                i,
+
+                points.length -
+                1
+
+            );
+
+
+        const countryText =
+
+            point.country ===
+            "入力地点"
+
+            ?
+
+            ""
+
+            :
+
+            point.country;
+
+
+        step.innerHTML =
+
+            '<div class="route-left">' +
+
+                '<div class="route-number">' +
+
+                    number +
+
+                "</div>" +
+
+                (
+
+                    i <
+                    points.length -
+                    1
+
+                    ?
+
+                    '<div class="route-line"></div>'
+
+                    :
+
+                    ""
+
+                ) +
+
+            "</div>" +
+
+
+            '<div class="route-card">' +
+
+                '<div class="route-place-name">' +
+
+                    emoji +
+
+                    " " +
+
+                    point.name +
+
+                "</div>" +
+
+                '<div class="route-country">' +
+
+                    countryText +
+
+                "</div>" +
+
+                '<div class="route-hint">' +
+
+                    "クリックで詳しい情報" +
+
+                "</div>" +
+
+            "</div>";
+
+
+        const card =
+            step.querySelector(
+                ".route-card"
+            );
+
+
+        card.addEventListener(
+
+            "click",
+
+            function() {
+
+                map.flyTo(
+
+                    [
+                        point.lat,
+                        point.lng
+                    ],
+
+                    point.type ===
+                    "city"
+
+                    ?
+
+                    7
+
+                    :
+
+                    8,
+
+                    {
+                        duration:1
+                    }
+
+                );
+
+
+                showPlaceInfo(
+                    point
+                );
+
+            }
+
+        );
+
+
+        routeList
+        .appendChild(
+            step
+        );
+
+
+        /* 次の地点 */
+
+        if (
+            i <
+            travelModes.length
+        ) {
+
+            const next =
+                points[
+                    i +
+                    1
+                ];
+
+
+            const mode =
+                travelModes[i];
+
+
+            const km =
+                distance(
+                    point,
+                    next
+                );
+
+
+            const cost =
+                estimateCost(
+                    mode,
+                    km
+                );
+
+
+            totalKm +=
+                km;
+
+
+            totalCost +=
+                cost;
+
+
+            status.innerText =
+
+                "🗺 ルート描画中 " +
+
+                (
+                    i +
+                    1
+                ) +
+
+                " / " +
+
+                travelModes.length;
+
+
+            await drawLeg(
+
+                point,
+
+                next,
+
+                mode
+
+            );
+
+
+            const transport =
+                document
+                .createElement(
+                    "div"
+                );
+
+
+            transport.className =
+
+                "route-transport " +
+
+                "mode-" +
+
+                mode;
+
+
+            transport.innerHTML =
+
+                '<div class="transport-top">' +
+
+                    '<div class="transport-name">' +
+
+                        modeInfo[
+                            mode
+                        ].emoji +
+
+                        " " +
+
+                        modeInfo[
+                            mode
+                        ].name +
+
+                    "</div>" +
+
+                    '<div class="transport-distance">' +
+
+                        "約 " +
+
+                        Math.round(
+                            km
+                        )
+                        .toLocaleString() +
+
+                        " km" +
+
+                    "</div>" +
+
+                "</div>" +
+
+                '<div class="transport-cost">' +
+
+                    "💴 参考料金：約 " + cost.toLocaleString() + " 円" +
+
+                "</div>";
+
+
+            routeList
+            .appendChild(
+                transport
+            );
+
+
+            if (
+                mode ===
+                "car" ||
+
+                mode ===
+                "train"
+            ) {
+
+                const mapButton =
+                    document
+                    .createElement(
+                        "a"
+                    );
+
+
+                mapButton.className =
+                    "map-button";
+
+
+                mapButton.target =
+                    "_blank";
+
+
+                mapButton.href =
+                    googleMapsURL(
+
+                        point,
+
+                        next,
+
+                        mode
+
+                    );
+
+
+                mapButton.innerText =
+                    "🗺 Googleマップで確認";
+
+
+                routeList
+                .appendChild(
+                    mapButton
+                );
+
+            }
+
+        }
+
+    }
+
+
+    return {
+
+        totalKm,
+
+        totalCost
+
+    };
+
+}
+
+
+/* ======================================================
+   地図操作
+====================================================== */
+
+function showWholeRoute() {
+
+    if (
+        currentRouteBounds
+    ) {
+
+        map.fitBounds(
+
+            currentRouteBounds,
+
+            {
+                padding:[
+                    70,
+                    70
+                ],
+
+                maxZoom:6
+            }
+
+        );
+
+    }
+
+}
+
+
+function showJapan() {
+
+    map.flyTo(
+
+        [
+            36.2,
+            138.2
+        ],
+
+        5,
+
+        {
+            duration:1
+        }
+
+    );
+
+}
+
+
+/* ======================================================
+   メイン
+====================================================== */
+
+async function createRoute() {
+
+    const startText =
+
+        document
+        .getElementById(
+            "start"
+        )
+        .value
+        .trim();
+
+
+    const goalText =
+
+        document
+        .getElementById(
+            "goal"
+        )
+        .value
+        .trim();
+
+
+    const status =
+
+        document
+        .getElementById(
+            "status"
+        );
+
+
+    const button =
+
+        document
+        .getElementById(
+            "routeButton"
+        );
+
+
+    if (
+        !startText ||
+        !goalText
+    ) {
+
+        status.innerText =
+
+            "⚠️ 出発地と目的地を入力してください";
+
+        return;
+
+    }
+
+
+    button.disabled =
+        true;
+
+
+    try {
+
+        status.innerText =
+            "🔎 出発地を検索しています…";
+
+
+        const start =
+            await geocode(
+                startText
+            );
+
+
+        await sleep(
+            1100
+        );
+
+
+        status.innerText =
+            "🔎 目的地を検索しています…";
+
+
+        const goal =
+            await geocode(
+                goalText
+            );
+
+
+        routeLayer
+        .clearLayers();
+
+
+        status.innerText =
+            "🎲 超遠回りを考えています…";
+
+
+        const route =
+            generateRoute(
+                start,
+                goal
+            );
+
+
+        const points =
+            route.points;
+
+
+        /* 地図マーカー */
+
+        points.forEach(
+
+            (
+                point,
+                index
+            ) => {
+
+                addMarker(
+
+                    point,
+
+                    index,
+
+                    points.length -
+                    1
+
+                );
+
+            }
+
+        );
+
+
+        /* 経路 */
+
+        const result =
+            await createTimeline(
+
+                route,
+
+                status
+
+            );
+
+
+        /* 国一覧 */
+
+        const countryList = [
+
+            ...new Set(
+
+                points
+
+                .map(
+                    point =>
+                        point.country
+                )
+
+                .filter(
+
+                    country =>
+
+                        country &&
+
+                        country !==
+                        "入力地点"
+
+                )
+
+            )
+
+        ];
+
+
+        /* 結果 */
+
+        document
+        .getElementById(
+            "summary"
+        )
+        .style.display =
+            "block";
+
+
+        document
+        .getElementById(
+            "routeType"
+        )
+        .innerHTML =
+
+            "🎲 ルート：<b>" +
+
+            route.name +
+
+            "</b>";
+
+
+        document
+        .getElementById(
+            "chaos"
+        )
+        .innerHTML =
+
+            "🔥 カオス度：" +
+
+            "🔥".repeat(
+                route.chaos
+            );
+
+
+        document
+        .getElementById(
+            "stopCount"
+        )
+        .innerHTML =
+
+            "📍 経由地：<b>" +
+
+            (
+                points.length -
+                2
+            ) +
+
+            "か所</b>";
+
+
+        document
+        .getElementById(
+            "totalDistance"
+        )
+        .innerHTML =
+
+            "🛣 推定距離：<b>" +
+
+            Math.round(
+                result.totalKm
+            )
+            .toLocaleString() +
+
+            " km</b>";
+
+
+        document
+        .getElementById(
+            "totalCost"
+        )
+        .innerHTML =
+
+            "💴 参考総額：<b>" +
+
+            result.totalCost
+            .toLocaleString() +
+
+            " 円</b>";
+
+
+        document
+        .getElementById(
+            "countries"
+        )
+        .innerHTML =
+
+            "🌏 訪問：<b>" +
+
+            (
+                countryList.length
+
+                ?
+
+                countryList.join(
+                    " → "
+                )
+
+                :
+
+                "日本"
+
+            ) +
+
+            "</b>";
+
+
+        /* 地図全体 */
+
+        currentRouteBounds =
+
+            L.latLngBounds(
+
+                points.map(
+
+                    point => [
+
+                        point.lat,
+
+                        point.lng
+
+                    ]
+
+                )
+
+            );
+
+
+        map.fitBounds(
+
+            currentRouteBounds,
+
+            {
+                padding:[
+                    70,
+                    70
+                ],
+
+                maxZoom:6
+            }
+
+        );
+
+
+        status.innerText =
+
+            "🔥 " +
+
+            route.name +
+
+            " 完成！";
+
+    }
+
+    catch(error) {
+
+        console.error(
+            error
+        );
+
+
+        status.innerText =
+
+            "❌ " +
+
+            (
+                error.message ||
+                "エラーが発生しました"
+            );
+
+    }
+
+    finally {
+
+        button.disabled =
+            false;
+
+    }
+
+}
+
+
+/* ======================================================
+   ボタン
+====================================================== */
+
+document
+.getElementById(
+    "routeButton"
+)
+.addEventListener(
+    "click",
+    createRoute
+);
+
+
+document
+.getElementById(
+    "goal"
+)
+.addEventListener(
+
+    "keydown",
+
+    event => {
+
+        if (
+            event.key ===
+            "Enter"
+        ) {
+
+            createRoute();
+
+        }
+
+    }
+
+);
+
+</script>
+
+</body>
+</html>
