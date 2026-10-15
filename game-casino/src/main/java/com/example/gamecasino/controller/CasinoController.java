@@ -7,9 +7,16 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import com.example.gamecasino.model.Player;
+import com.example.gamecasino.repository.PlayerRepository;
 
 @Controller
 public class CasinoController {
+
+    private final PlayerRepository playerRepository;
+
+    public CasinoController(PlayerRepository playerRepository) {
+        this.playerRepository = playerRepository;
+    }
 
     @GetMapping("/")
     public String home(Model model) {
@@ -28,6 +35,9 @@ public class CasinoController {
             Model model) {
 
         Player player = new Player(playerName);
+
+        // H2データベースに保存
+        playerRepository.save(player);
 
         model.addAttribute("player", player);
 
