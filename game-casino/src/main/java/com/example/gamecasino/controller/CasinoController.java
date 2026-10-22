@@ -18,23 +18,32 @@ public class CasinoController {
         this.playerRepository = playerRepository;
     }
 
+    // トップページ
     @GetMapping("/")
     public String home(Model model) {
         model.addAttribute("title", "Game Casino");
         return "index";
     }
 
+    // プレイヤー登録画面
     @GetMapping("/player")
     public String playerPage() {
         return "player";
     }
 
+    // プレイヤー登録処理
     @PostMapping("/player/start")
     public String startGame(
             @RequestParam String playerName,
             Model model) {
 
-        Player player = new Player(playerName);
+        // 名前の入力チェック
+        if (playerName == null || playerName.trim().isEmpty()) {
+            model.addAttribute("error", "プレイヤー名を入力してください。");
+            return "player";
+        }
+
+        Player player = new Player(playerName.trim());
 
         // H2データベースに保存
         playerRepository.save(player);

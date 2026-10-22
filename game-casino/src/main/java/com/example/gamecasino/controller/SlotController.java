@@ -15,14 +15,15 @@ import com.example.gamecasino.repository.PlayerRepository;
 public class SlotController {
 
     private final PlayerRepository playerRepository;
+    private final Random random = new Random();
 
     public SlotController(PlayerRepository playerRepository) {
         this.playerRepository = playerRepository;
     }
 
+    // スロット画面
     @GetMapping("/slot")
     public String slot(Model model) {
-
         Player player = playerRepository.findAll()
                 .stream()
                 .findFirst()
@@ -33,6 +34,7 @@ public class SlotController {
         return "slot";
     }
 
+    // スロットを回す
     @PostMapping("/slot/play")
     public String playSlot(
             @RequestParam int bet,
@@ -43,101 +45,81 @@ public class SlotController {
                 .findFirst()
                 .orElse(null);
 
-        // 賭け金チェック
-        if (bet <= 0) {
-            model.addAttribute("player", player);
-            model.addAttribute("error", "賭け金は1C以上にしてください。");
+        // プレイヤーがいない場合
+        if (player == null) {
+            model.addAttribute("error",
+                    "プレイヤーが登録されていません。先に登録してください。");
             return "slot";
         }
 
-        // -------------------------
-        // 賭け金を支払う
-        // -------------------------
+        // 掛け金チェック
+        if (bet <= 0) {
+            model.addAttribute("error",
+                    "掛け金は1以上にしてください。");
+            model.addAttribute("player", player);
+            return "slot";
+        }
 
+        // 掛け金を支払う
         if (player.getCoin() >= bet) {
-
-            // Coinだけで賭けられる
             player.setCoin(player.getCoin() - bet);
-
         } else {
-
-            // Coinが足りない場合
+            // コインが足りない分は借金にする
             int shortage = bet - player.getCoin();
-
-            // Coinを0にする
             player.setCoin(0);
-
-            // 足りない分をDebtに追加
             player.setDebt(player.getDebt() + shortage);
         }
 
-        // -------------------------
-        // スロット抽選
-        // -------------------------
+        // スロットの絵柄
+        String[] symbols = {"🍒", "🍋", "🍊", "BAR", "7"};
 
-        String[] symbols = {
-                "🍒",
-                "🍋",
-                "🍊",
-                "BAR",
-                "7"
-        };
-
-        Random random = new Random();
-
-        String result1 = symbols[random.nextInt(symbols.length)];
-        String result2 = symbols[random.nextInt(symbols.length)];
-        String result3 = symbols[random.nextInt(symbols.length)];
+        String s1 = symbols[random.nextInt(symbols.length)];
+        String s2 = symbols[random.nextInt(symbols.length)];
+        String s3 = symbols[random.nextInt(symbols.length)];
 
         int multiplier = 0;
 
-        // 3つ全部同じか確認
-        if (result1.equals(result2)
-                && result2.equals(result3)) {
-
-            if (result1.equals("7")) {
-
-                multiplier = 50;
-
-            } else if (result1.equals("BAR")) {
-
-                multiplier = 20;
-
-            } else if (result1.equals("🍒")) {
-
-                multiplier = 10;
-
-            } else {
-
-                multiplier = 5;
-            }
+        // 当たり判定
+        if (s1.equals("7")
+                && s2.equals("7")
+                && s3.equals("7")) {
+            multiplier = 50;
+        } else if (s1.equals("BAR")
+                && s2.equals("BAR")
+                && s3.equals("BAR")) {
+            multiplier = 20;
+        } else if (s1.equals("🍒")
+                && s2.equals("🍒")
+                && s3.equals("🍒")) {
+            multiplier = 10;
+        } else if (s1.equals(s2) && s2.equals(s3)) {
+            multiplier = 5;
         }
 
-        // -------------------------
-        // 配当
-        // -------------------------
-
+        // 払い戻し
         int payout = bet * multiplier;
 
-        // 配当をCoinに追加
         player.setCoin(player.getCoin() + payout);
 
-        // H2に保存
+        // H2データベースに保存
         playerRepository.save(player);
 
-        // -------------------------
-        // 画面に渡す
-        // -------------------------
-
+        // 画面に結果を渡す
         model.addAttribute("player", player);
-
-        model.addAttribute("result1", result1);
-        model.addAttribute("result2", result2);
-        model.addAttribute("result3", result3);
-
+        model.addAttribute("s1", s1);
+        model.addAttribute("s2", s2);
+        model.addAttribute("s3", s3);
         model.addAttribute("bet", bet);
         model.addAttribute("multiplier", multiplier);
         model.addAttribute("payout", payout);
+
+        if (multiplier > 0) {
+            model.addAttribute("result",
+                    "当たり！ " + payout + " C 獲得！");
+        } else {
+            model.addAttribute("result",
+                    "残念！今回はハズレです。");
+        }
 
         return "slot";
     }
