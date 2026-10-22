@@ -18,6 +18,7 @@ import org.springframework.http.HttpHeaders;
 import com.reme.re_me.service.PublicUserIdService;
 import com.reme.re_me.service.SessionAuthService;
 import com.reme.re_me.entity.User;
+import com.reme.re_me.repository.UserRepository;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
@@ -38,6 +39,7 @@ public class MessageWebSocketHandler extends TextWebSocketHandler {
     private final SessionAuthService sessionAuthService;
     private final CallService callService;
     private final MessageTypingService messageTypingService;
+    private final UserRepository userRepository;
     private final ConcurrentHashMap<Long, Set<WebSocketSession>> sessions = new ConcurrentHashMap<>();
 
     public MessageWebSocketHandler(
@@ -45,13 +47,15 @@ public class MessageWebSocketHandler extends TextWebSocketHandler {
             PublicUserIdService publicUserIdService,
             SessionAuthService sessionAuthService,
             CallService callService,
-            MessageTypingService messageTypingService
+            MessageTypingService messageTypingService,
+            UserRepository userRepository
     ) {
         this.objectMapper = objectMapper;
         this.publicUserIdService = publicUserIdService;
         this.sessionAuthService = sessionAuthService;
         this.callService = callService;
         this.messageTypingService = messageTypingService;
+        this.userRepository = userRepository;
     }
 
     public void sendCallEvent(Long userId, Object event) {
@@ -82,6 +86,12 @@ public class MessageWebSocketHandler extends TextWebSocketHandler {
             }
             session.getAttributes().put(USER_ID_ATTRIBUTE, userId);
             sessions.computeIfAbsent(userId, ignored -> ConcurrentHashMap.newKeySet()).add(session);
+            broadcastPresence(userId, true);
+            for (Long connectedUserId : sessions.keySet()) {
+                if (!connectedUserId.equals(userId)) {
+                    sendPresence(userId, connectedUserId, true);
+                }
+            }
             logger.info("Message WebSocket connected for user {}", userId);
         } catch (IllegalArgumentException | org.springframework.web.server.ResponseStatusException exception) {
             logger.warn("Rejected WebSocket connection with invalid user identity: {}",
@@ -92,7 +102,11 @@ public class MessageWebSocketHandler extends TextWebSocketHandler {
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
+        Long userId = sessionUserId(session);
         removeSession(session);
+        if (userId != null && !sessions.containsKey(userId)) {
+            broadcastPresence(userId, false);
+        }
     }
 
     @Override
@@ -214,6 +228,29 @@ public class MessageWebSocketHandler extends TextWebSocketHandler {
                 }
             }
         }
+    }
+
+    private Long sessionUserId(WebSocketSession session) {
+        Object userId = session.getAttributes().get(USER_ID_ATTRIBUTE);
+        return userId instanceof Long id ? id : null;
+    }
+
+    private void broadcastPresence(Long userId, boolean connected) {
+        User user = userRepository.findById(userId).orElse(null);
+        if (user == null) return;
+        for (Long recipientId : sessions.keySet()) {
+            sendPresence(recipientId, userId, connected);
+        }
+    }
+
+    private void sendPresence(Long recipientId, Long subjectUserId, boolean online) {
+        User subject = userRepository.findById(subjectUserId).orElse(null);
+        if (subject == null) return;
+        sendEventToUser(recipientId, Map.of(
+                "type", "presence",
+                "userId", subject.getPublicId(),
+                "email", subject.getEmail(),
+                "online", online && subject.isOnlineStatusVisible()), "presence");
     }
 
     private void closeInvalidSession(WebSocketSession session) {

@@ -23,6 +23,9 @@ public class User {
     @Column(nullable = false)
     private String name;
 
+    @Column(name = "online_status_visible", nullable = false)
+    private boolean onlineStatusVisible = true;
+
     // コンストラクタ
     public User() {}
 
@@ -49,4 +52,8 @@ public class User {
     public void setPassword(String password) { this.password = password; }
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
+    public boolean isOnlineStatusVisible() { return onlineStatusVisible; }
+    public void setOnlineStatusVisible(boolean onlineStatusVisible) {
+        this.onlineStatusVisible = onlineStatusVisible;
+    }
 }
