@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blackjack - Game Casino</title>
+</head>
+<body>
+    <h1>♠️ BLACKJACK ♠️</h1>
+    <hr>
+ 
+    <div th:if="${player != null}">
+        <h2>
+            プレイヤー：
+            <span th:text="${player.playerName}">プレイヤー名</span>
+        </h2>
+        <p>Coin：<strong th:text="${player.coin}">10000</strong> C</p>
+        <p>Debt：<strong th:text="${player.debt}">0</strong> C</p>
+        <p>Balance：<strong th:text="${player.balance}">10000</strong> C</p>
+    </div>
+ 
+    <p th:if="${error != null}" th:text="${error}"></p>
+ 
+    <!-- ゲーム開始 -->
+    <div th:if="${playing == null}">
+        <h2>掛け金を決めよう</h2>
+        <form action="/blackjack/start" method="post">
+            <input type="number" name="bet"
+                   min="1" value="100" required>
+            C
+            <button type="submit">ゲーム開始</button>
+        </form>
+    </div>
+ 
+    <!-- ゲーム中・結果表示 -->
+    <div th:if="${playing != null}">
+        <h2>あなたのカード</h2>
+        <p>
+            <span th:text="${#strings.replace(playerCards, ',', ' / ')}"></span>
+        </p>
+        <p>
+            合計：
+            <strong th:text="${playerScore}">0</strong>
+        </p>
+ 
+        <h2>ディーラーのカード</h2>
+        <p>
+            <span th:text="${#strings.replace(dealerCards, ',', ' / ')}"></span>
+        </p>
+        <p>
+            合計：
+            <strong th:text="${dealerScore}">0</strong>
+        </p>
+ 
+        <p>掛け金：<strong th:text="${bet}">100</strong> C</p>
+ 
+        <!-- プレイ中だけ操作ボタンを表示 -->
+        <div th:if="${playing}">
+            <form action="/blackjack/hit" method="post"
+                  style="display:inline;">
+                <input type="hidden" name="bet" th:value="${bet}">
+                <input type="hidden" name="playerCards"
+                       th:value="${playerCards}">
+                <input type="hidden" name="dealerCards"
+                       th:value="${dealerCards}">
+                <button type="submit">🃏 もう1枚引く（HIT）</button>
+            </form>
+ 
+            <form action="/blackjack/stand" method="post"
+                  style="display:inline;">
+                <input type="hidden" name="bet" th:value="${bet}">
+                <input type="hidden" name="playerCards"
+                       th:value="${playerCards}">
+                <input type="hidden" name="dealerCards"
+                       th:value="${dealerCards}">
+                <button type="submit">✋ 勝負する（STAND）</button>
+            </form>
+        </div>
+ 
+        <!-- 勝負終了後 -->
+        <div th:if="${playing == false}">
+            <h2 th:text="${result}">結果</h2>
+            <p>
+                獲得コイン：
+                <strong th:text="${payout}">0</strong> C
+            </p>
+            <form action="/blackjack" method="get">
+                <button type="submit">もう一度遊ぶ</button>
+            </form>
+        </div>
+    </div>
+ 
+    <hr>
+    <a href="/">ホームに戻る</a>
+</body>
+</html>
+ 
+Thymeleaf
