@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+ 
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yacht - Game Casino</title>
+ 
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: "Meiryo", sans-serif;
+            background: #10251e;
+            color: white;
+            text-align: center;
+        }
+ 
+        h1 {
+            color: #f5d76e;
+        }
+ 
+        .panel {
+            max-width: 850px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #194d3b;
+            border: 2px solid #c9a849;
+            border-radius: 15px;
+        }
+ 
+        .dice-area {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin: 25px 0;
+        }
+ 
+        .die {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+ 
+        .die-face {
+            width: 65px;
+            height: 65px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: white;
+            color: #222;
+            border-radius: 12px;
+            font-size: 38px;
+            font-weight: bold;
+            box-shadow: 0 4px 8px #0005;
+        }
+ 
+        input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            accent-color: #f5d76e;
+        }
+ 
+        button {
+            padding: 12px 22px;
+            margin: 7px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: bold;
+        }
+ 
+        button:hover {
+            filter: brightness(1.15);
+        }
+ 
+        .main-button {
+            background: #f5d76e;
+            color: #222;
+        }
+ 
+        .reset-button {
+            background: #b94747;
+            color: white;
+        }
+ 
+        select {
+            padding: 10px;
+            border-radius: 7px;
+            font-size: 15px;
+            max-width: 100%;
+        }
+ 
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            background: #123729;
+        }
+ 
+        th, td {
+            padding: 10px;
+            border: 1px solid #719784;
+        }
+ 
+        th {
+            background: #0d392b;
+            color: #f5d76e;
+        }
+ 
+        .total {
+            font-size: 25px;
+            color: #f5d76e;
+            font-weight: bold;
+        }
+ 
+        .back {
+            display: inline-block;
+            margin: 20px;
+            color: white;
+        }
+ 
+        @media(max-width: 500px) {
+            body {
+                padding: 8px;
+            }
+ 
+            .die-face {
+                width: 52px;
+                height: 52px;
+                font-size: 30px;
+            }
+ 
+            .panel {
+                padding: 12px 7px;
+            }
+ 
+            th, td {
+                padding: 7px 3px;
+                font-size: 13px;
+            }
+        }
+    </style>
+</head>
+ 
+<body>
+ 
+    <h1>🎲 YACHT 🎲</h1>
+    <p>GAME CASINO</p>
+ 
+    <div class="panel" th:if="${player != null}">
+        <h3>
+            PLAYER：
+            <span th:text="${player.playerName}"></span>
+        </h3>
+ 
+        <p>
+            COIN：
+            <strong th:text="${player.coin}"></strong> C
+        </p>
+ 
+        <p>
+            DEBT：
+            <strong th:text="${player.debt}"></strong> C
+        </p>
+ 
+        <p>
+            BALANCE：
+            <strong th:text="${player.balance}"></strong> C
+        </p>
+    </div>
+ 
+    <div class="panel" th:if="${player == null}">
+        プレイヤーが登録されていません。
+    </div>
+ 
+    <!-- ゲーム開始 -->
+    <div class="panel" th:if="${game == null}">
+        <h2>ヨットを始めよう！</h2>
+        <p>5個のサイコロを使って、12種類の役を完成させよう。</p>
+ 
+        <form action="/yacht/start" method="post">
+            <button class="main-button" type="submit">
+                🎲 ゲーム開始
+            </button>
+        </form>
+    </div>
+ 
+    <!-- ゲーム中 -->
+    <div class="panel" th:if="${game != null and !finished}">
+ 
+        <h2>サイコロ</h2>
+ 
+        <p>
+            振った回数：
+            <strong th:text="${rollCount}"></strong> / 3
+        </p>
+ 
+        <form action="/yacht/roll" method="post">
+ 
+            <div class="dice-area">
+ 
+                <div class="die"
+                     th:each="die, stat : ${dice}">
+ 
+                    <div class="die-face"
+                         th:text="${die}">1</div>
+ 
+                    <label>
+                        <input type="checkbox"
+                               name="keep"
+                               th:value="${stat.index}">
+                        キープ
+                    </label>
+ 
+                </div>
+ 
+            </div>
+ 
+            <p>残したいサイコロにチェックを入れてね。</p>
+ 
+            <button class="main-button"
+                    type="submit"
+                    th:disabled="${!canRoll}">
+                🎲 振り直す
+            </button>
+ 
+        </form>
+ 
+        <hr>
+ 
+        <h2>役を選択して得点を記録</h2>
+ 
+        <form action="/yacht/score" method="post">
+ 
+            <select name="category" required>
+                <option value="">役を選択してください</option>
+ 
+                <option th:each="entry : ${possibleScores}"
+                        th:value="${entry.key}"
+                        th:text="${labels[entry.key] + ' ： ' + entry.value + '点'}">
+                </option>
+            </select>
+ 
+            <br><br>
+ 
+            <button class="main-button" type="submit">
+                得点を記録する
+            </button>
+ 
+        </form>
+ 
+    </div>
+ 
+    <!-- 得点表 -->
+    <div class="panel" th:if="${scores != null}">
+ 
+        <h2>📋 スコアシート</h2>
+ 
+        <table>
+            <thead>
+                <tr>
+                    <th>役</th>
+                    <th>得点</th>
+                </tr>
+            </thead>
+ 
+            <tbody>
+                <tr th:each="entry : ${scores}">
+                    <td th:text="${labels[entry.key]}"></td>
+ 
+                    <td th:if="${entry.value == null}">未記録</td>
+ 
+                    <td th:if="${entry.value != null}"
+                        th:text="${entry.value} + '点'">
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+ 
+        <p class="total">
+            合計得点：
+            <span th:text="${totalScore}"></span> 点
+        </p>
+ 
+    </div>
+ 
+    <!-- ゲーム終了 -->
+    <div class="panel" th:if="${finished == true}">
+        <h2>🏆 GAME CLEAR! 🏆</h2>
+        <p>12種類すべての役を記録しました！</p>
+ 
+        <p class="total">
+            最終得点：
+            <span th:text="${totalScore}"></span> 点
+        </p>
+    </div>
+ 
+    <!-- リセット -->
+    <div th:if="${game != null}">
+        <form action="/yacht/reset" method="post"
+              onsubmit="return confirm('ゲームを最初からやり直しますか？');">
+ 
+            <button class="reset-button" type="submit">
+                ゲームをリセット
+            </button>
+        </form>
+    </div>
+ 
+    <a class="back" href="/">← ホームに戻る</a>
+ 
+</body>
+</html>
