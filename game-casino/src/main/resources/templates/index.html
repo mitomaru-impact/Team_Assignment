@@ -1,29 +1,149 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title th:text="${title}">Game Casino</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: "Segoe UI", "Meiryo", sans-serif;
+            background: linear-gradient(135deg, #10251e, #0b1713);
+            color: #ffffff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 30px 15px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 750px;
+            padding: 45px 35px;
+            text-align: center;
+            background: #194d3b;
+            border: 2px solid #c9a849;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+        }
+
+        h1 {
+            color: #f5d76e;
+            font-size: 36px;
+            margin-bottom: 15px;
+            text-shadow: 2px 2px 5px #000000;
+        }
+
+        .welcome {
+            font-size: 18px;
+            margin-bottom: 30px;
+        }
+
+        .start-button {
+            display: inline-block;
+            padding: 15px 45px;
+            margin-bottom: 35px;
+            background: linear-gradient(135deg, #f5d76e, #c9a849);
+            color: #10251e;
+            font-size: 20px;
+            font-weight: bold;
+            text-decoration: none;
+            border-radius: 12px;
+            transition: 0.3s;
+            box-shadow: 0 5px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .start-button:hover {
+            transform: translateY(-4px);
+            filter: brightness(1.1);
+        }
+
+        h2 {
+            color: #f5d76e;
+            font-size: 24px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #c9a849;
+            padding-bottom: 10px;
+        }
+
+        .game-list {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            padding: 0;
+            list-style: none;
+        }
+
+        .game-item {
+            padding: 22px 10px;
+            background: #10251e;
+            border: 1px solid #c9a849;
+            border-radius: 12px;
+            font-size: 18px;
+            font-weight: bold;
+            color: #ffffff;
+            transition: 0.3s;
+        }
+
+        .game-item:hover {
+            background: #24664d;
+            transform: scale(1.03);
+        }
+
+        .description {
+            color: #dddddd;
+            font-size: 13px;
+            margin-top: 25px;
+        }
+
+        @media (max-width: 500px) {
+            .container {
+                padding: 30px 20px;
+            }
+
+            h1 {
+                font-size: 28px;
+            }
+
+            .game-list {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
 </head>
 
 <body>
 
-    <h1>🎰 Game Casino 🎰</h1>
+    <div class="container">
 
-	<p>ようこそ！</p>
+        <h1>🎰 Game Casino 🎰</h1>
 
-	<a href="/player">
-	    <button>ゲームを始める</button>
-	</a>
+        <p class="welcome">ようこそ！ゲームカジノへ！</p>
 
-    <h2>ゲームを選択してください</h2>
+        <a href="/player" class="start-button">
+            ゲームを始める
+        </a>
 
-    <ul>
-        <li>🎲 Yacht</li>
-        <li>🃏 High & Low</li>
-        <li>🎰 Slot</li>
-        <li>♠️ Blackjack</li>
-    </ul>
+        <h2>🎮 遊べるゲーム 🎮</h2>
+
+        <ul class="game-list">
+            <li class="game-item">🎲 Yacht</li>
+            <li class="game-item">🃏 High & Low</li>
+            <li class="game-item">🎰 Slot</li>
+            <li class="game-item">♠️ Blackjack</li>
+        </ul>
+
+        <p class="description">
+            好きなゲームを選んで、Game Casinoを楽しもう！
+        </p>
+
+    </div>
 
 </body>
 </html>

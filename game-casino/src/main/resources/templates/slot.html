@@ -1,75 +1,440 @@
 <!DOCTYPE html>
 <html lang="ja" xmlns:th="http://www.thymeleaf.org">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Slot - Game Casino</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            font-family: "Meiryo", sans-serif;
+            background: #10251e;
+            color: white;
+            text-align: center;
+        }
+
+        h1 {
+            color: #f5d76e;
+            font-size: 32px;
+            margin-bottom: 8px;
+        }
+
+        h2 {
+            color: #f5d76e;
+        }
+
+        .subtitle {
+            color: #c9c9c9;
+            letter-spacing: 3px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .panel {
+            max-width: 850px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #194d3b;
+            border: 2px solid #c9a849;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px #0005;
+        }
+
+        .panel-title {
+            color: #f5d76e;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #719784;
+        }
+
+        /* プレイヤー情報 */
+        .player-name {
+            font-size: 18px;
+            margin-bottom: 15px;
+        }
+
+        .player-info {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+        }
+
+        .info-item {
+            padding: 14px;
+            background: #123729;
+            border: 1px solid #719784;
+            border-radius: 10px;
+        }
+
+        .info-label {
+            display: block;
+            color: #c9c9c9;
+            font-size: 13px;
+            margin-bottom: 7px;
+        }
+
+        .info-value {
+            color: #f5d76e;
+            font-size: 22px;
+            font-weight: bold;
+        }
+
+        /* スロットリール */
+        .slot-machine {
+            max-width: 600px;
+            margin: 25px auto;
+            padding: 25px 15px;
+            background: #123729;
+            border: 3px solid #c9a849;
+            border-radius: 18px;
+            box-shadow: inset 0 0 15px #0008;
+        }
+
+        .reels {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .reel {
+            width: 120px;
+            height: 125px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: white;
+            color: #222;
+            border: 4px solid #c9a849;
+            border-radius: 15px;
+            font-size: 65px;
+            font-weight: bold;
+            box-shadow: 0 5px 10px #0006;
+        }
+
+        .slot-label {
+            color: #f5d76e;
+            font-size: 17px;
+        }
+
+        /* 配当情報 */
+        .result-info {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        .result-item {
+            padding: 15px 8px;
+            background: #123729;
+            border: 1px solid #719784;
+            border-radius: 10px;
+        }
+
+        .result-label {
+            display: block;
+            color: #c9c9c9;
+            font-size: 13px;
+            margin-bottom: 8px;
+        }
+
+        .result-value {
+            color: #f5d76e;
+            font-size: 22px;
+            font-weight: bold;
+        }
+
+        /* WIN・LOSE */
+        .win-message {
+            margin-top: 20px;
+            padding: 18px;
+            background: #245c36;
+            border: 2px solid #f5d76e;
+            border-radius: 12px;
+            color: #f5d76e;
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .lose-message {
+            margin-top: 20px;
+            padding: 18px;
+            background: #633030;
+            border: 2px solid #b94747;
+            border-radius: 12px;
+            color: white;
+            font-size: 25px;
+            font-weight: bold;
+        }
+
+        /* 掛け金入力 */
+        .bet-area {
+            margin: 25px 0;
+        }
+
+        .bet-input {
+            width: 180px;
+            max-width: 100%;
+            padding: 12px;
+            border: 2px solid #c9a849;
+            border-radius: 8px;
+            background: white;
+            color: #222;
+            font-size: 18px;
+            text-align: center;
+        }
+
+        /* ボタン */
+        button {
+            padding: 13px 28px;
+            margin: 8px;
+            border: none;
+            border-radius: 8px;
+            background: #f5d76e;
+            color: #222;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: 0.2s;
+        }
+
+        button:hover {
+            filter: brightness(1.15);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 12px #0005;
+        }
+
+        .error {
+            padding: 13px;
+            background: #7d2929;
+            border: 1px solid #e77;
+            border-radius: 8px;
+            color: white;
+        }
+
+        .back {
+            display: inline-block;
+            margin: 20px;
+            color: white;
+            text-decoration: none;
+        }
+
+        .back:hover {
+            color: #f5d76e;
+        }
+
+        hr {
+            border: none;
+            border-top: 1px solid #719784;
+            margin: 25px 0;
+        }
+
+        @media(max-width: 500px) {
+            body {
+                padding: 8px;
+            }
+
+            h1 {
+                font-size: 25px;
+            }
+
+            .panel {
+                padding: 12px 7px;
+            }
+
+            .player-info {
+                grid-template-columns: 1fr;
+            }
+
+            .result-info {
+                grid-template-columns: 1fr;
+            }
+
+            .reels {
+                gap: 7px;
+            }
+
+            .reel {
+                width: 85px;
+                height: 95px;
+                font-size: 45px;
+            }
+
+            button {
+                width: 90%;
+            }
+        }
+    </style>
 </head>
+
 <body>
-    <h1>🎰 SLOT 🎰</h1>
-    <hr>
-    <div th:if="${player != null}">
-        <h2>
-            プレイヤー：
-            <span th:text="${player.playerName}">プレイヤー名</span>
-        </h2>
-        <p>
-            Coin：
-            <strong th:text="${player.coin}">10000</strong> C
-        </p>
-        <p>
-            Debt：
-            <strong th:text="${player.debt}">0</strong> C
-        </p>
-        <p>
-            Balance：
-            <strong th:text="${player.balance}">10000</strong> C
-        </p>
-    </div>
-    <hr>
-    <!-- スロット結果 -->
-    <div th:if="${s1 != null and s2 != null and s3 != null}">
-        <h2>結果</h2>
-        <div style="font-size: 60px;">
-            <span th:text="${s1}">🍒</span>
-            <span th:text="${s2}">🍋</span>
-            <span th:text="${s3}">🍊</span>
+
+<div class="container">
+
+    <!-- タイトル -->
+    <header>
+        <h1>🎰 SLOT 🎰</h1>
+        <p class="subtitle">GAME CASINO</p>
+    </header>
+
+    <!-- プレイヤー情報 -->
+    <div class="panel" th:if="${player != null}">
+
+        <h2 class="panel-title">👤 PLAYER INFORMATION</h2>
+
+        <div class="player-name">
+            PLAYER：
+            <strong th:text="${player.playerName}">プレイヤー名</strong>
         </div>
-        <p>
-            賭け金：
-            <strong th:text="${bet}">100</strong> C
-        </p>
-        <p>
-            倍率：
-            <strong th:text="${multiplier}">0</strong> 倍
-        </p>
-        <p>
-            配当：
-            <strong th:text="${payout}">0</strong> C
-        </p>
-        <h2 th:if="${multiplier > 0}">🎉 WIN! 🎉</h2>
-        <h2 th:if="${multiplier == 0}">😢 LOSE...</h2>
+
+        <div class="player-info">
+
+            <div class="info-item">
+                <span class="info-label">COIN</span>
+                <span class="info-value"
+                      th:text="${player.coin}">10000</span>
+                C
+            </div>
+
+            <div class="info-item">
+                <span class="info-label">DEBT</span>
+                <span class="info-value"
+                      th:text="${player.debt}">0</span>
+                C
+            </div>
+
+            <div class="info-item">
+                <span class="info-label">BALANCE</span>
+                <span class="info-value"
+                      th:text="${player.balance}">10000</span>
+                C
+            </div>
+
+        </div>
     </div>
+
+    <!-- スロット結果 -->
+    <div class="panel"
+         th:if="${s1 != null and s2 != null and s3 != null}">
+
+        <h2 class="panel-title">🎰 SLOT RESULT</h2>
+
+        <p class="slot-label">RESULT</p>
+
+        <div class="slot-machine">
+
+            <div class="reels">
+
+                <div class="reel">
+                    <span th:text="${s1}">🍒</span>
+                </div>
+
+                <div class="reel">
+                    <span th:text="${s2}">🍋</span>
+                </div>
+
+                <div class="reel">
+                    <span th:text="${s3}">⭐</span>
+                </div>
+
+            </div>
+
+        </div>
+
+        <!-- 配当情報 -->
+        <div class="result-info">
+
+            <div class="result-item">
+                <span class="result-label">BET</span>
+                <span class="result-value"
+                      th:text="${bet}">100</span>
+                C
+            </div>
+
+            <div class="result-item">
+                <span class="result-label">MULTIPLIER</span>
+                <span class="result-value"
+                      th:text="${multiplier}">0</span>
+                倍
+            </div>
+
+            <div class="result-item">
+                <span class="result-label">PAYOUT</span>
+                <span class="result-value"
+                      th:text="${payout}">0</span>
+                C
+            </div>
+
+        </div>
+
+        <!-- 勝敗表示 -->
+        <div class="win-message"
+             th:if="${multiplier > 0}">
+            🎉 WIN! 🎉
+        </div>
+
+        <div class="lose-message"
+             th:if="${multiplier == 0}">
+            😢 LOSE...
+        </div>
+
+    </div>
+
     <!-- エラーメッセージ -->
-    <div th:if="${error != null}">
-        <p th:text="${error}"></p>
+    <div class="panel error"
+         th:if="${error != null}"
+         th:text="${error}">
     </div>
-    <!-- 賭け金入力 -->
-    <h2>賭け金</h2>
-    <form action="/slot/play" method="post">
-        <input
-            type="number"
-            name="bet"
-            min="1"
-            value="100"
-            required
-        >
-        C
-        <br><br>
-        <button type="submit">🎰 スロットを回す</button>
-    </form>
-    <br>
-    <a href="/">ホームに戻る</a>
+
+    <!-- 掛け金入力 -->
+    <div class="panel">
+
+        <h2 class="panel-title">💰 MAKE YOUR BET</h2>
+
+        <p>掛け金を決めてスロットを回そう！</p>
+
+        <form action="/slot/play" method="post">
+
+            <div class="bet-area">
+
+                <label for="bet">掛け金：</label>
+                <br><br>
+
+                <input class="bet-input"
+                       type="number"
+                       id="bet"
+                       name="bet"
+                       min="1"
+                       value="100"
+                       required>
+                C
+
+            </div>
+
+            <button type="submit">
+                🎰 スロットを回す
+            </button>
+
+        </form>
+
+    </div>
+
+    <!-- ホームへ戻る -->
+    <a class="back" href="/">← ホームに戻る</a>
+
+</div>
+
 </body>
 </html>
- 

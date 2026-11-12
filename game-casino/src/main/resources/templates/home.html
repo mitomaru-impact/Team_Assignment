@@ -1,62 +1,223 @@
 <!DOCTYPE html>
-<html lang="ja"
-      xmlns:th="http://www.thymeleaf.org">
- 
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
- 
     <title>Game Casino</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            padding: 30px 15px;
+            font-family: "Segoe UI", "Meiryo", sans-serif;
+            background: linear-gradient(135deg, #10251e, #0b1713);
+            color: #ffffff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 750px;
+            padding: 40px 35px;
+            text-align: center;
+            background: #194d3b;
+            border: 2px solid #c9a849;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+        }
+
+        h1 {
+            color: #f5d76e;
+            font-size: 34px;
+            margin-bottom: 25px;
+            text-shadow: 2px 2px 5px #000000;
+        }
+
+        h2 {
+            color: #f5d76e;
+            font-size: 23px;
+            margin-bottom: 25px;
+        }
+
+        .player-name {
+            color: #ffffff;
+            border-bottom: 2px solid #f5d76e;
+            padding-bottom: 3px;
+        }
+
+        .section-title {
+            color: #f5d76e;
+            font-size: 22px;
+            margin: 30px 0 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #c9a849;
+        }
+
+        .info-list {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+        }
+
+        .info-card {
+            padding: 20px 10px;
+            background: #10251e;
+            border: 1px solid #c9a849;
+            border-radius: 12px;
+        }
+
+        .info-label {
+            display: block;
+            color: #f5d76e;
+            font-size: 15px;
+            margin-bottom: 10px;
+        }
+
+        .info-value {
+            display: block;
+            font-size: 22px;
+            font-weight: bold;
+            overflow-wrap: anywhere;
+        }
+
+        .coin-value {
+            color: #7dffab;
+        }
+
+        .debt-value {
+            color: #ff8585;
+        }
+
+        .balance-value {
+            color: #f5d76e;
+        }
+
+        .game-list {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }
+
+        .game-link {
+            display: block;
+            padding: 22px 10px;
+            background: #10251e;
+            border: 1px solid #c9a849;
+            border-radius: 12px;
+            color: #ffffff;
+            text-decoration: none;
+            font-size: 19px;
+            font-weight: bold;
+            transition: 0.3s;
+        }
+
+        .game-link:hover {
+            background: #24664d;
+            transform: translateY(-4px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .footer {
+            margin-top: 30px;
+            color: #cccccc;
+            font-size: 13px;
+        }
+
+        @media (max-width: 550px) {
+            .container {
+                padding: 30px 20px;
+            }
+
+            h1 {
+                font-size: 27px;
+            }
+
+            .info-list {
+                grid-template-columns: 1fr;
+            }
+
+            .game-list {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
 </head>
- 
+
 <body>
- 
-    <h1>🎰 Game Casino 🎰</h1>
- 
-    <h2>
-        ようこそ、
-        <span th:text="${player.playerName}"></span> さん！
-    </h2>
- 
-    <hr>
- 
-    <h3>💰 所持情報</h3>
- 
-    <p>
-        Coin：
-        <strong th:text="${player.coin}"></strong> C
-    </p>
- 
-    <p>
-        Debt：
-        <strong th:text="${player.debt}"></strong> C
-    </p>
- 
-    <p>
-        Balance：
-        <strong th:text="${player.balance}"></strong> C
-    </p>
- 
-	<hr>
- 
-	<h2>ゲームを選択</h2>
- 
-	<a href="/yacht">
-	    <button>🎲 Yacht</button>
-	</a>
- 
-	<a href="/slot">
-	    <button>🎰 Slot</button>
-	</a>
- 
-	<a href="/highlow">
-	    <button>🃏 High & Low</button>
-	</a>
- 
-	<a href="/blackjack">
-	    <button>♠️ ブラックジャック</button>
-	</a>
-	
- 
+
+    <div class="container">
+
+        <h1>🎰 Game Casino 🎰</h1>
+
+        <h2>
+            ようこそ、
+            <span class="player-name"
+                  th:text="${player.playerName}"></span>
+            さん！
+        </h2>
+
+        <h3 class="section-title">💰 所持情報</h3>
+
+        <div class="info-list">
+
+            <div class="info-card">
+                <span class="info-label">💰 Coin</span>
+                <strong class="info-value coin-value"
+                        th:text="${player.coin}"></strong>
+                <span>C</span>
+            </div>
+
+            <div class="info-card">
+                <span class="info-label">📉 Debt</span>
+                <strong class="info-value debt-value"
+                        th:text="${player.debt}"></strong>
+                <span>C</span>
+            </div>
+
+            <div class="info-card">
+                <span class="info-label">⚖️ Balance</span>
+                <strong class="info-value balance-value"
+                        th:text="${player.balance}"></strong>
+                <span>C</span>
+            </div>
+
+        </div>
+
+        <h3 class="section-title">🎮 ゲームを選択</h3>
+
+        <div class="game-list">
+
+            <a href="/yacht" class="game-link">
+                🎲 Yacht
+            </a>
+
+            <a href="/slot" class="game-link">
+                🎰 Slot
+            </a>
+
+            <a href="/highlow" class="game-link">
+                🃏 High & Low
+            </a>
+
+            <a href="/blackjack" class="game-link">
+                ♠️ ブラックジャック
+            </a>
+
+        </div>
+
+        <p class="footer">
+            好きなゲームを選んで、カジノを楽しもう！
+        </p>
+
+    </div>
+
 </body>
 </html>

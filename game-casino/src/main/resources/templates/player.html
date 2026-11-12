@@ -1,32 +1,160 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Player Setup</title>
+    <title>Player Setup - Game Casino</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: "Segoe UI", "Meiryo", sans-serif;
+            background: linear-gradient(135deg, #10251e, #0b1713);
+            color: #ffffff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 500px;
+            padding: 40px 30px;
+            text-align: center;
+            background: #194d3b;
+            border: 2px solid #c9a849;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+        }
+
+        h1 {
+            color: #f5d76e;
+            font-size: 32px;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 5px #000000;
+        }
+
+        h2 {
+            color: #f5d76e;
+            font-size: 24px;
+            margin-bottom: 30px;
+        }
+
+        .description {
+            color: #dddddd;
+            margin-bottom: 25px;
+        }
+
+        form {
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 15px;
+        }
+
+        label {
+            text-align: left;
+            font-weight: bold;
+            color: #f5d76e;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 14px;
+            border: 2px solid #c9a849;
+            border-radius: 10px;
+            background: #10251e;
+            color: #ffffff;
+            font-size: 16px;
+            outline: none;
+        }
+
+        input[type="text"]:focus {
+            border-color: #f5d76e;
+            box-shadow: 0 0 8px rgba(245, 215, 110, 0.5);
+        }
+
+        input::placeholder {
+            color: #aaaaaa;
+        }
+
+        button {
+            margin-top: 15px;
+            padding: 14px;
+            border: none;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #f5d76e, #c9a849);
+            color: #10251e;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        button:hover {
+            transform: translateY(-3px);
+            filter: brightness(1.1);
+        }
+
+        .note {
+            margin-top: 25px;
+            color: #cccccc;
+            font-size: 13px;
+        }
+
+        @media (max-width: 500px) {
+            .container {
+                padding: 30px 20px;
+            }
+
+            h1 {
+                font-size: 27px;
+            }
+        }
+    </style>
 </head>
 
 <body>
 
-    <h1>🎰 Game Casino</h1>
+    <div class="container">
 
-    <h2>プレイヤー登録</h2>
+        <h1>🎰 Game Casino 🎰</h1>
 
-    <form action="/player/start" method="post">
+        <h2>👤 プレイヤー登録</h2>
 
-        <label for="playerName">プレイヤー名：</label>
+        <p class="description">
+            ゲームで使用するプレイヤー名を入力してください。
+        </p>
 
-        <input
-            type="text"
-            id="playerName"
-            name="playerName"
-            required
-            maxlength="20"
-        >
+        <form action="/player/start" method="post">
 
-        <button type="submit">ゲームを開始</button>
+            <label for="playerName">プレイヤー名：</label>
 
-    </form>
+            <input
+                type="text"
+                id="playerName"
+                name="playerName"
+                placeholder="名前を入力（20文字以内）"
+                required
+                maxlength="20"
+            >
+
+            <button type="submit">🎮 ゲームを開始</button>
+
+        </form>
+
+        <p class="note">
+            あなたの名前を登録して、カジノを楽しもう！
+        </p>
+
+    </div>
 
 </body>
 </html>
