@@ -29,7 +29,7 @@ public class BlackjackController {
     @GetMapping("/blackjack")
     public String blackjack(Model model, HttpSession session) {
 
-        Player player = getPlayer();
+    	Player player = getPlayer();
 
         model.addAttribute("player", player);
 
@@ -57,7 +57,7 @@ public class BlackjackController {
             Model model,
             HttpSession session) {
 
-        Player player = getPlayer();
+    	Player player = getPlayer();
 
         if (player == null) {
             model.addAttribute("error", "先にプレイヤーを登録してください。");
@@ -115,7 +115,7 @@ public class BlackjackController {
     @PostMapping("/blackjack/hit")
     public String hit(Model model, HttpSession session) {
 
-        Player player = getPlayer();
+    	Player player = getPlayer();
 
         List<String> pCards =
                 getSessionCards(session, "blackjackPlayerCards");
@@ -188,9 +188,7 @@ public class BlackjackController {
 
     // プレイヤー取得
     private Player getPlayer() {
-        return playerRepository.findAll()
-                .stream()
-                .findFirst()
+        return playerRepository.findTopByOrderByPlayerIdDesc()
                 .orElse(null);
     }
 

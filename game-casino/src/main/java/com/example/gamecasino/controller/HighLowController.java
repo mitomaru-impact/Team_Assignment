@@ -25,9 +25,7 @@ public class HighLowController {
     @GetMapping("/highlow")
     public String highLow(Model model) {
 
-        Player player = playerRepository.findAll()
-                .stream()
-                .findFirst()
+        Player player = playerRepository.findTopByOrderByPlayerIdDesc()
                 .orElse(null);
 
         int currentCard = random.nextInt(13) + 1;
@@ -47,10 +45,8 @@ public class HighLowController {
             @RequestParam int currentCard,
             Model model) {
 
-        Player player = playerRepository.findAll()
-                .stream()
-                .findFirst()
-                .orElse(null);
+        Player player = playerRepository.findTopByOrderByPlayerIdDesc()
+        		.orElse(null);
 
         model.addAttribute("player", player);
         model.addAttribute("currentCard", currentCard);

@@ -119,9 +119,7 @@ public class YachtController {
     }
  
     private Player getPlayer() {
-        return playerRepository.findAll()
-                .stream()
-                .findFirst()
+        return playerRepository.findTopByOrderByPlayerIdDesc()
                 .orElse(null);
     }
  

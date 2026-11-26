@@ -37,15 +37,24 @@ public class CasinoController {
             @RequestParam String playerName,
             Model model) {
 
-        // 名前の入力チェック
         if (playerName == null || playerName.trim().isEmpty()) {
             model.addAttribute("error", "プレイヤー名を入力してください。");
             return "player";
         }
 
-        Player player = new Player(playerName.trim());
+        // 最後に登録したプレイヤーを取得
+        Player player = playerRepository
+                .findTopByOrderByPlayerIdDesc()
+                .orElse(null);
 
-        // H2データベースに保存
+        // 初回登録の場合
+        if (player == null) {
+            player = new Player(playerName.trim());
+        } else {
+            // 既存プレイヤーの名前だけ変更
+            player.setPlayerName(playerName.trim());
+        }
+
         playerRepository.save(player);
 
         model.addAttribute("player", player);

@@ -24,11 +24,9 @@ public class SlotController {
     // スロット画面
     @GetMapping("/slot")
     public String slot(Model model) {
-        Player player = playerRepository.findAll()
-                .stream()
-                .findFirst()
+        Player player = playerRepository.findTopByOrderByPlayerIdDesc()
                 .orElse(null);
-
+        
         model.addAttribute("player", player);
 
         return "slot";
@@ -40,9 +38,7 @@ public class SlotController {
             @RequestParam int bet,
             Model model) {
 
-        Player player = playerRepository.findAll()
-                .stream()
-                .findFirst()
+        Player player = playerRepository.findTopByOrderByPlayerIdDesc()
                 .orElse(null);
 
         // プレイヤーがいない場合
